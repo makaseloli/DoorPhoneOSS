@@ -1,0 +1,31 @@
+{
+  "name": "DoorPhone",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev --host",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@nuxt/ui": "^4.1.0",
+    "@prisma/client": "^6.19.0",
+    "@prisma/nuxt": "^0.3.0",
+    "nuxt": "^4.2.0",
+    "valibot": "^1.1.0"
+  },
+  "devDependencies": {
+    "@iconify-json/material-symbols": "^1.2.44",
+    "@nuxt/eslint": "^1.9.0",
+    "@types/node": "^24.10.0",
+    "eslint": "^9.38.0",
+    "prisma": "^6.19.0",
+    "tailwindcss": "^4.1.16",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.1.2"
+  },
+  "packageManager": "pnpm@10.19.0"
+}

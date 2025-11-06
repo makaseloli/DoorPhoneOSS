@@ -1,0 +1,24 @@
+services:
+  doorphone:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: doorphone-app
+    ports:
+      - "34567:34567"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: file:/app/data/dev.db
+      PORT: 34567
+      NITRO_PORT: 34567
+      NITRO_HOST: 0.0.0.0
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+    volumes:
+      - doorphone_data:/app/data
+    restart: unless-stopped
+    command: >-
+      sh -c "mkdir -p /app/data && (pnpm prisma migrate deploy || true) && pnpm prisma db push --accept-data-loss && node .output/server/index.mjs"
+
+volumes:
+  doorphone_data:
