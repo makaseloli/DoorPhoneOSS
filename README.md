@@ -2,13 +2,17 @@
 シンプルなドアホンシステム。
 
 ## 起動
-1. /publicにpush.mp3[^1]とring.mp3[^2]を配置する。
-2. 以下を実行する。
+1. 
 ```sh
 git clone https://github.com/makaseloli/DoorPhoneOSS.git
 cd DoorPhoneOSS
+```
+2. /publicにpush.mp3[^1]とring.mp3[^2]を配置する。
+3. 
+```sh
 echo "DISCORD_WEBHOOK_URL=<YOUR_DISCORD_WEBHOOK_URL_HERE>" > .env
-docker compose up --build --no-cache
+docker compose build --no-cache
+docker compose up
 ```
 
 [^1]: ドアホン側で再生。

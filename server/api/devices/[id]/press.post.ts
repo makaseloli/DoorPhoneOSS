@@ -36,8 +36,8 @@ export default defineEventHandler(async (event) => {
       body: {
         embeds: [
           {
-            title: '呼び出しがありました',
-            description: `${doorName} が押されました。`,
+            title: '呼び出しがありました。',
+            description: `${doorName}が押されました。`,
             timestamp: payload.triggeredAt
           }
         ]
