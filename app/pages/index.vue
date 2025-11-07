@@ -85,7 +85,7 @@ const attachSource = (doorId: number) => {
       toast.add({
         title: '呼び出し',
         description: `${doorName}が${timeLabel}に押されました。`,
-        icon: 'material-symbols:call-outline',
+        icon: 'ic:outline-call-received',
       })
       if (chime) {
         try {
@@ -172,9 +172,9 @@ onBeforeUnmount(() => {
 <template>
   <UDashboardGroup>
     <UDashboardPanel>
-      <UDashboardNavbar title="ドアホン" icon="material-symbols:door-open-outline">
+      <UDashboardNavbar title="ドアホン" icon="ic:outline-door-front">
         <template #right>
-          <UButton icon="material-symbols:add-circle-outline" color="neutral" variant="ghost"
+          <UButton icon="ic:outline-add" color="neutral" variant="ghost"
             @click="openAddModal = true" />
           <UColorModeButton />
         </template>
@@ -183,9 +183,9 @@ onBeforeUnmount(() => {
         <UPageList v-if="hasDoors">
           <UPageHeader v-for="door in doorItems" :key="door.id" :title="door.name" :description="`ID: ${door.id}`">
             <template #links>
-              <UButton label="UIへ移動" target="_blank" variant="outline" icon="material-symbols:open-jam-outline"
+              <UButton label="UIへ移動" target="_blank" variant="outline" icon="ic:outline-open-in-new"
                 :to="`/doorphone/${door.id}`" />
-              <UButton label="削除" color="error" icon="material-symbols:delete-outline"
+              <UButton label="削除" color="error" icon="ic:outline-delete"
                 @click="openDeleteModal(door.id)" />
             </template>
             <template #description>
@@ -208,8 +208,8 @@ onBeforeUnmount(() => {
       <p>本当に削除しますか？</p>
     </template>
     <template #footer>
-      <UButton color="primary" @click="AreYouDelete.state = false; AreYouDelete.id = 0">キャンセル</UButton>
-      <UButton color="error" @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false">削除</UButton>
+      <UButton color="primary" @click="AreYouDelete.state = false; AreYouDelete.id = 0" icon="ic:outline-clear">キャンセル</UButton>
+      <UButton color="error" @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false" icon="ic:outline-check">削除</UButton>
     </template>
   </UModal>
 
@@ -221,7 +221,7 @@ onBeforeUnmount(() => {
     </template>
 
     <template #footer>
-      <UButton color="primary" :disabled="!isDoorFormValid" :loading="isSubmitting"
+      <UButton color="primary" :disabled="!isDoorFormValid" :loading="isSubmitting" icon="ic:outline-check"
         @click="addDoor(); openAddModal = false">追加</UButton>
     </template>
   </UModal>

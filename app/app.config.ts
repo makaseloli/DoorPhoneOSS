@@ -5,10 +5,15 @@ export default defineAppConfig({
       neutral: 'slate'
     },
     icons: {
-      light: 'material-symbols:sunny-outline',
-      dark: 'material-symbols:nightlight-outline'
+      light: 'ic:outline-light-mode',
+      dark: 'ic:outline-dark-mode'
     },
     header: {
+      slots: {
+        toggle: 'hidden'
+      }
+    },
+    dashboardNavbar: {
       slots: {
         toggle: 'hidden'
       }

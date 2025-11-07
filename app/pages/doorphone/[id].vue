@@ -98,7 +98,7 @@ if (!import.meta.env.SSR) {
         })
         toast.add({
           title: '呼び出し完了!',
-          icon: 'material-symbols:check-circle-outline'
+          icon: 'ic:outline-check'
         })
         try {
           chime.currentTime = 0
@@ -110,7 +110,7 @@ if (!import.meta.env.SSR) {
         console.warn('Received non-JSON event payload', evt.data, error)
         toast.add({
           title: '呼び出し失敗',
-          icon: 'material-symbols:error-outline',
+          icon: 'ic:outline-error-outline',
           color: 'error'
         })
       }
