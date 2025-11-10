@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
     </template>
   </UHeader>
   <UContainer class="mt-8 mx-auto max-w-[800px]">
-    <UAlert v-if="lastTriggeredFrom" title="呼び出しがありました。" :description="lastTriggeredFrom ? `${lastTriggeredFrom[0]}から${lastTriggeredFrom[1]}に呼び出されました。` : ''" close close-icon="ic:outline-close" variant="outline" @click="lastTriggeredFrom = null" />
+    <UAlert v-if="lastTriggeredFrom" title="呼び出しがありました。" :description="lastTriggeredFrom ? `${lastTriggeredFrom[0]}から${lastTriggeredFrom[1]}に呼び出されました。` : ''" close close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral" @click="lastTriggeredFrom = null" />
     <UButton color="primary"
       class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
       @click="triggerDoor()" size="xl">
