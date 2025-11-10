@@ -12,6 +12,8 @@ const route = useRoute()
 const triggerModalState = ref<boolean>(false)
 const triggeringDoorId = ref<number | null>(null)
 
+const lastTriggeredFrom = ref<[string, string] | null>(null)
+
 const rawId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id
 const sanitizedId = rawId?.toString().trim() ?? ''
 
@@ -175,6 +177,7 @@ const attachSource = () => {
             description: `${payload.name}が${timeLabel}に押されました。`,
             icon: 'ic:outline-call-received'
           })
+          lastTriggeredFrom.value = [payload.triggeredFrom ?? '', timeLabel]
           if (ring) {
             try {
               ring.currentTime = 0
@@ -239,6 +242,7 @@ onBeforeUnmount(() => {
     </template>
   </UHeader>
   <UContainer class="mt-8 mx-auto max-w-[800px]">
+    <UAlert v-if="lastTriggeredFrom" title="呼び出しがありました。" :description="lastTriggeredFrom ? `${lastTriggeredFrom[0]}から${lastTriggeredFrom[1]}に呼び出されました。` : ''" close close-icon="ic:outline-close" variant="outline" @click="lastTriggeredFrom = null" />
     <UButton color="primary"
       class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
       @click="triggerDoor()" size="xl">
@@ -257,7 +261,7 @@ onBeforeUnmount(() => {
         <UProgress color="neutral" animation="swing" />
       </div>
       <div v-else-if="otherDoors.length === 0" class="py-4 text-center text-neutral-500">
-        他のドアは登録されていません。
+        他の部屋は登録されていません。
       </div>
       <div v-else class="space-y-3">
         <UButton v-for="door in otherDoors" :key="door.id" color="neutral" variant="solid" block
