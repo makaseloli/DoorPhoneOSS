@@ -24,3 +24,6 @@ logs
 !.env.example
 dev.db
 migrations
+
+push.mp3
+ring.mp3

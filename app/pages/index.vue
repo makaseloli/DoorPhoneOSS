@@ -90,7 +90,7 @@ const attachSource = (doorId: number) => {
   reconnectAttempts.set(doorId, 0)
   source.onmessage = (evt) => {
     try {
-      const payload = JSON.parse(evt.data) as { triggeredAt: string; name?: string, type: 'door' | 'dash' }
+      const payload = JSON.parse(evt.data) as { triggeredAt: string; triggeredFrom?: string; name?: string, type: 'door' | 'dash' }
       const timeLabel = formatTime(payload.triggeredAt)
 
       switch (payload.type) {
@@ -113,7 +113,8 @@ const attachSource = (doorId: number) => {
           break
         case 'dash':
           toast.add({
-            title: '呼び出し完了!',
+            title: `呼び出し完了!`,
+            description: `${payload.name}を呼び出しました。`,
             icon: 'ic:outline-check'
           })
           if (ring) {

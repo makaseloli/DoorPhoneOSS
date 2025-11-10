@@ -23,7 +23,8 @@ export default defineEventHandler(async (event) => {
   const payload = {
     id,
     triggeredAt,
-    name: body?.customName ?? door.name,
+    triggeredFrom: body.customName,
+    name: door.name,
     type: source
   }
 

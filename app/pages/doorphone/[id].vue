@@ -9,6 +9,9 @@ interface Door {
 const toast = useToast()
 const route = useRoute()
 
+const triggerModalState = ref<boolean>(false)
+const triggeringDoorId = ref<number | null>(null)
+
 const rawId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id
 const sanitizedId = rawId?.toString().trim() ?? ''
 
@@ -23,6 +26,16 @@ const { data: device, error, pending } = await useFetch<Door>(`/api/doors/${sani
   key: `door-${sanitizedId}`,
 })
 
+const {
+  data: doors,
+  pending: doorsPending,
+  refresh: refreshDoors
+} = useFetch<Door[]>(`/api/doors`, {
+  server: false,
+  lazy: true,
+  default: () => []
+})
+
 if (error.value) {
   throw createError({
     statusCode: error.value.statusCode ?? 500,
@@ -30,7 +43,10 @@ if (error.value) {
   })
 }
 
+const currentDoorId = Number.parseInt(sanitizedId, 10)
+
 const deviceName = computed(() => device.value?.name ?? 'ドアホン')
+const otherDoors = computed(() => (doors.value ?? []).filter((door) => door.id !== currentDoorId))
 
 const currentTime = ref<string>('--:--:--')
 const lastRingAt = ref<string | null>(null)
@@ -51,6 +67,49 @@ const triggerDoor = async () => {
   } catch (error) {
     console.error('Failed to trigger door', error)
   }
+}
+
+const triggerOtherDoor = async (doorId: number, doorName: string) => {
+  if (triggeringDoorId.value) return
+  try {
+    triggeringDoorId.value = doorId
+    await $fetch(`/api/doors/${doorId}/press`, {
+      method: 'POST',
+      body: { source: 'dash', customName: deviceName.value}
+    })
+    toast.add({
+      title: '呼び出し完了!',
+      description: `${doorName}を呼び出しました。`,
+      icon: 'ic:outline-check'
+    })
+    if (chime) {
+      try {
+        chime.currentTime = 0
+        void chime.play()
+      } catch (playError) {
+        console.warn('Audio playback blocked', playError)
+      }
+    }
+    triggerModalState.value = false
+  } catch (error) {
+    console.error('Failed to trigger door', error)
+    toast.add({
+      title: '呼び出し失敗',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    })
+  } finally {
+    triggeringDoorId.value = null
+  }
+}
+
+const openTriggerModal = async () => {
+  try {
+    await refreshDoors()
+  } catch (error) {
+    console.error('Failed to load doors', error)
+  }
+  triggerModalState.value = true
 }
 
 let intervalId: ReturnType<typeof setInterval> | null = null
@@ -91,7 +150,7 @@ const attachSource = () => {
   reconnectAttempt = 0
   source.onmessage = (evt) => {
     try {
-      const payload = JSON.parse(evt.data) as { triggeredAt: string; name?: string, type: 'door' | 'dash' }
+      const payload = JSON.parse(evt.data) as { triggeredAt: string; triggeredFrom?: string; name?: string, type: 'door' | 'dash' }
       const timeLabel = formatTime(payload.triggeredAt)
       lastRingAt.value = timeLabel
 
@@ -112,7 +171,7 @@ const attachSource = () => {
           break
         case 'dash':
           toast.add({
-            title: '呼び出し',
+            title: `${payload.triggeredFrom}から呼び出し`,
             description: `${payload.name}が${timeLabel}に押されました。`,
             icon: 'ic:outline-call-received'
           })
@@ -168,7 +227,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <UHeader :title="deviceName">
+  <UHeader>
+    <template #left>
+      <h1 class="font-bold">{{ deviceName }}</h1>
+      <UBadge color="neutral" variant="outline">{{ currentTime }}</UBadge>
+    </template>
     <template #right>
       <UBadge color="neutral">ID: {{ rawId }}</UBadge>
       <UBadge v-if="lastRingAt" color="primary">最終呼び出し: {{ lastRingAt }}</UBadge>
@@ -176,11 +239,37 @@ onBeforeUnmount(() => {
     </template>
   </UHeader>
   <UContainer class="mt-8 mx-auto max-w-[800px]">
-    <UPageCTA :title="currentTime" />
     <UButton color="primary"
       class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
       @click="triggerDoor()" size="xl">
       <p class="text-center">呼ぶ</p>
     </UButton>
+    <UButton color="neutral"
+      class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+      @click="openTriggerModal()" size="xl">
+      <p class="text-center">他の部屋を呼ぶ</p>
+    </UButton>
   </UContainer>
+
+  <UModal v-model:open="triggerModalState" title="どの部屋を呼びますか?">
+    <template #body>
+      <div v-if="doorsPending" class="py-4 text-center text-neutral-500">
+        <UProgress color="neutral" animation="swing" />
+      </div>
+      <div v-else-if="otherDoors.length === 0" class="py-4 text-center text-neutral-500">
+        他のドアは登録されていません。
+      </div>
+      <div v-else class="space-y-3">
+        <UButton v-for="door in otherDoors" :key="door.id" color="neutral" variant="solid" block
+          :loading="triggeringDoorId === door.id" icon="ic:outline-call-made"
+          @click="triggerOtherDoor(door.id, door.name)">
+          {{ door.name }}
+        </UButton>
+      </div>
+    </template>
+    <template #footer>
+      <UButton color="primary" @click="triggerModalState = false;" icon="ic:outline-clear">キャンセル
+      </UButton>
+    </template>
+  </UModal>
 </template>

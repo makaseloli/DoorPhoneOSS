@@ -5,6 +5,7 @@ import { doorEventEmitter } from '../../../utils/doorEvents'
 interface DoorEventPayload {
   id: number
   triggeredAt: string
+  triggeredFrom: string
   name?: string
   type: 'door' | 'dash'
 }
