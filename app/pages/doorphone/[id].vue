@@ -19,7 +19,7 @@ if (!/^\d+$/.test(sanitizedId)) {
   })
 }
 
-const { data: device, error, pending } = await useFetch<Door>(`/api/devices/${sanitizedId}`, {
+const { data: device, error, pending } = await useFetch<Door>(`/api/doors/${sanitizedId}`, {
   key: `door-${sanitizedId}`,
 })
 
@@ -35,104 +35,136 @@ const deviceName = computed(() => device.value?.name ?? 'ドアホン')
 const currentTime = ref<string>('--:--:--')
 const lastRingAt = ref<string | null>(null)
 
+const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false
+})
+
 const triggerDoor = async () => {
   try {
-    await $fetch(`/api/devices/${sanitizedId}/press`, { method: 'POST' })
+    await $fetch(`/api/doors/${sanitizedId}/press`, {
+      method: 'POST',
+      body: { source: 'door' }
+    })
   } catch (error) {
     console.error('Failed to trigger door', error)
   }
 }
 
-if (!import.meta.env.SSR) {
-  const updateTime = () => {
-    currentTime.value = new Date().toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    })
-  }
+let intervalId: ReturnType<typeof setInterval> | null = null
+let chime: HTMLAudioElement | null = null
+let ring: HTMLAudioElement | null = null
+let eventSource: EventSource | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let reconnectAttempt = 0
 
-  updateTime()
-  const intervalId = setInterval(updateTime, 1000)
-  const chime = new Audio('/push.mp3')
-  chime.preload = 'auto'
-  let eventSource: EventSource | null = null
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let reconnectAttempt = 0
+const updateTime = () => {
+  currentTime.value = formatTime(new Date().toISOString())
+}
 
-  const cleanupEventSource = () => {
-    eventSource?.close()
+const detachSource = () => {
+  if (eventSource) {
+    eventSource.close()
     eventSource = null
   }
-
-  const scheduleReconnect = () => {
-    const attempt = reconnectAttempt + 1
-    reconnectAttempt = attempt
-    const delay = Math.min(30000, 1000 * 2 ** (attempt - 1))
-    if (reconnectTimer) clearTimeout(reconnectTimer)
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null
-      connectEvents()
-    }, delay)
-  }
-
-  const connectEvents = () => {
-    cleanupEventSource()
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer)
-      reconnectTimer = null
-    }
-    eventSource = new EventSource(`/api/devices/${sanitizedId}/events`)
-    eventSource.onopen = () => {
-      reconnectAttempt = 0
-    }
-    eventSource.onmessage = (evt) => {
-      try {
-        const payload = JSON.parse(evt.data) as { triggeredAt: string }
-        lastRingAt.value = new Date(payload.triggeredAt).toLocaleTimeString('ja-JP', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: false
-        })
-        toast.add({
-          title: '呼び出し完了!',
-          icon: 'ic:outline-check'
-        })
-        try {
-          chime.currentTime = 0
-          void chime.play()
-        } catch (playError) {
-          console.warn('Audio playback blocked', playError)
-        }
-      } catch (error) {
-        console.warn('Received non-JSON event payload', evt.data, error)
-        toast.add({
-          title: '呼び出し失敗',
-          icon: 'ic:outline-error-outline',
-          color: 'error'
-        })
-      }
-    }
-    eventSource.onerror = (error) => {
-      console.error('Door events stream error', sanitizedId, error)
-      cleanupEventSource()
-      scheduleReconnect()
-    }
-  }
-
-  onMounted(() => {
-    connectEvents()
-  })
-
-  onBeforeUnmount(() => {
-    clearInterval(intervalId)
-    if (reconnectTimer) clearTimeout(reconnectTimer)
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
     reconnectTimer = null
-    cleanupEventSource()
-  })
+  }
 }
+
+const scheduleReconnect = () => {
+  if (reconnectTimer) return
+  reconnectAttempt += 1
+  const delay = Math.min(30000, 1000 * 2 ** (reconnectAttempt - 1))
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null
+    attachSource()
+  }, delay)
+}
+
+const attachSource = () => {
+  if (eventSource) return
+  const source = new EventSource(`/api/doors/${sanitizedId}/events`)
+  reconnectAttempt = 0
+  source.onmessage = (evt) => {
+    try {
+      const payload = JSON.parse(evt.data) as { triggeredAt: string; name?: string, type: 'door' | 'dash' }
+      const timeLabel = formatTime(payload.triggeredAt)
+      lastRingAt.value = timeLabel
+
+      switch (payload.type) {
+        case 'door':
+          toast.add({
+            title: '呼び出し完了!',
+            icon: 'ic:outline-check'
+          })
+          if (chime) {
+            try {
+              chime.currentTime = 0
+              void chime.play()
+            } catch (playError) {
+              console.warn('Audio playback blocked', playError)
+            }
+          }
+          break
+        case 'dash':
+          toast.add({
+            title: '呼び出し',
+            description: `${payload.name}が${timeLabel}に押されました。`,
+            icon: 'ic:outline-call-received'
+          })
+          if (ring) {
+            try {
+              ring.currentTime = 0
+              void ring.play()
+            } catch (playError) {
+              console.warn('Audio playback blocked', playError)
+            }
+          }
+          break
+      }
+    } catch (error) {
+      console.warn('Received non-JSON event payload', evt.data, error)
+      toast.add({
+        title: '呼び出し失敗',
+        icon: 'ic:outline-error-outline',
+        color: 'error'
+      })
+    }
+  }
+  source.onopen = () => {
+    reconnectAttempt = 0
+  }
+  source.onerror = (error) => {
+    console.error('Door events stream error', sanitizedId, error)
+    detachSource()
+    scheduleReconnect()
+  }
+  eventSource = source
+}
+
+onMounted(() => {
+  updateTime()
+  intervalId = setInterval(() => {
+    updateTime()
+  }, 1000)
+  chime = new Audio('/push.mp3')
+  ring = new Audio('/ring.mp3')
+  chime.preload = 'auto'
+  ring.preload = 'auto'
+  attachSource()
+})
+
+onBeforeUnmount(() => {
+  if (intervalId) {
+    clearInterval(intervalId)
+    intervalId = null
+  }
+  detachSource()
+})
 </script>
 
 <template>

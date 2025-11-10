@@ -16,7 +16,7 @@ const isSubmitting = ref<boolean>(false);
 const AreYouDelete = ref<DeleteForm>({ id: 0, state: false });
 const openAddModal = ref<boolean>(false);
 
-const { data: doors, refresh: refreshDoors } = useFetch<Door[]>('/api/devices', {
+const { data: doors, refresh: refreshDoors } = useFetch<Door[]>('/api/doors', {
   server: false,
   lazy: true,
   default: () => [],
@@ -27,6 +27,7 @@ const sources = new Map<number, EventSource>()
 const reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>()
 const reconnectAttempts = new Map<number, number>()
 let chime: HTMLAudioElement | null = null
+let ring: HTMLAudioElement | null = null
 let stopDoorsWatch: (() => void) | null = null
 
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
@@ -35,6 +36,17 @@ const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
   second: '2-digit',
   hour12: false
 });
+
+const triggerDoor = async (doorId: number) => {
+  try {
+    await $fetch(`/api/doors/${doorId}/press`, {
+      method: 'POST',
+      body: { source: 'dash', customName: 'ダッシュボード' }
+    })
+  } catch (error) {
+    console.error('Failed to trigger door', error)
+  }
+}
 
 const isDoorFormValid = computed(() => {
   const name = door_name.value.trim();
@@ -74,26 +86,45 @@ const scheduleReconnect = (doorId: number) => {
 
 const attachSource = (doorId: number) => {
   if (sources.has(doorId)) return
-  const source = new EventSource(`/api/devices/${doorId}/events`)
+  const source = new EventSource(`/api/doors/${doorId}/events`)
   reconnectAttempts.set(doorId, 0)
   source.onmessage = (evt) => {
     try {
-      const payload = JSON.parse(evt.data) as { triggeredAt: string }
+      const payload = JSON.parse(evt.data) as { triggeredAt: string; name?: string, type: 'door' | 'dash' }
       const timeLabel = formatTime(payload.triggeredAt)
-      lastTriggers[doorId] = timeLabel
-      const doorName = doorItems.value.find((door) => door.id === doorId)?.name ?? `ID ${doorId}`
-      toast.add({
-        title: '呼び出し',
-        description: `${doorName}が${timeLabel}に押されました。`,
-        icon: 'ic:outline-call-received',
-      })
-      if (chime) {
-        try {
-          chime.currentTime = 0
-          void chime.play()
-        } catch (playError) {
-          console.warn('Audio playback blocked', playError)
-        }
+
+      switch (payload.type) {
+        case 'door':
+          lastTriggers[doorId] = timeLabel
+          const doorName = payload.name ?? doorItems.value.find((door) => door.id === doorId)?.name ?? `ID ${doorId}`
+          toast.add({
+            title: '呼び出し',
+            description: `${doorName}が${timeLabel}に押されました。`,
+            icon: 'ic:outline-call-received',
+          })
+          if (chime) {
+            try {
+              chime.currentTime = 0
+              void chime.play()
+            } catch (playError) {
+              console.warn('Audio playback blocked', playError)
+            }
+          }
+          break
+        case 'dash':
+          toast.add({
+            title: '呼び出し完了!',
+            icon: 'ic:outline-check'
+          })
+          if (ring) {
+            try {
+              ring.currentTime = 0
+              void ring.play()
+            } catch (playError) {
+              console.warn('Audio playback blocked', playError)
+            }
+          }
+          break
       }
     } catch (error) {
       console.warn('Invalid event payload', evt.data, error)
@@ -118,7 +149,7 @@ const addDoor = async () => {
 
   try {
     isSubmitting.value = true;
-    await $fetch("/api/devices/add", {
+    await $fetch('/api/doors', {
       method: "POST",
       body: { name },
     });
@@ -133,7 +164,7 @@ const addDoor = async () => {
 
 const deleteDoor = async (id: number) => {
   try {
-    await $fetch(`/api/devices/${id}`, { method: "DELETE" });
+    await $fetch(`/api/doors/${id}`, { method: "DELETE" });
     await refreshDoors();
   } catch (error) {
     console.error(error);
@@ -152,7 +183,9 @@ onMounted(async () => {
   }
 
   chime = new Audio('/ring.mp3')
+  ring = new Audio('/push.mp3')
   chime.preload = 'auto'
+  ring.preload = 'auto'
 
   stopDoorsWatch = watch(doorItems, (doors) => {
     const activeIds = doors.map((door) => door.id)
@@ -174,8 +207,7 @@ onBeforeUnmount(() => {
     <UDashboardPanel>
       <UDashboardNavbar title="ドアホン" icon="ic:outline-door-front">
         <template #right>
-          <UButton icon="ic:outline-add" color="neutral" variant="ghost"
-            @click="openAddModal = true" />
+          <UButton icon="ic:outline-add" color="neutral" variant="ghost" @click="openAddModal = true" />
           <UColorModeButton />
         </template>
       </UDashboardNavbar>
@@ -185,8 +217,8 @@ onBeforeUnmount(() => {
             <template #links>
               <UButton label="UIへ移動" target="_blank" variant="outline" icon="ic:outline-open-in-new"
                 :to="`/doorphone/${door.id}`" />
-              <UButton label="削除" color="error" icon="ic:outline-delete"
-                @click="openDeleteModal(door.id)" />
+              <UButton label="呼ぶ" color="primary" icon="ic:outline-call-made" @click="triggerDoor(door.id)" />
+              <UButton label="削除" color="error" icon="ic:outline-delete" @click="openDeleteModal(door.id)" />
             </template>
             <template #description>
               <UBadge class="mr-2" color="neutral">ID: {{ door.id }}</UBadge>
@@ -208,8 +240,10 @@ onBeforeUnmount(() => {
       <p>本当に削除しますか？</p>
     </template>
     <template #footer>
-      <UButton color="primary" @click="AreYouDelete.state = false; AreYouDelete.id = 0" icon="ic:outline-clear">キャンセル</UButton>
-      <UButton color="error" @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false" icon="ic:outline-check">削除</UButton>
+      <UButton color="primary" @click="AreYouDelete.state = false; AreYouDelete.id = 0" icon="ic:outline-clear">キャンセル
+      </UButton>
+      <UButton color="error" @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false" icon="ic:outline-check">削除
+      </UButton>
     </template>
   </UModal>
 
