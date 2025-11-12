@@ -2,12 +2,13 @@ import { createError, createEventStream, setResponseHeader } from 'h3'
 import { getDoorIdParam } from '../../../utils/doors'
 import { doorEventEmitter } from '../../../utils/doorEvents'
 
-interface DoorEventPayload {
+export interface DoorEventPayload {
   id: number
+  idFrom: number
   triggeredAt: string
-  triggeredFrom: string
-  name?: string
-  type: 'door' | 'dash'
+  name: string
+  nameFrom: string
+  type: 'door' | 'dash' | 'record'
 }
 
 export default defineEventHandler((event) => {
@@ -31,12 +32,15 @@ export default defineEventHandler((event) => {
 
   const pressedListener = (payload: DoorEventPayload) => pushIfMatch(payload)
   const openedListener = (payload: DoorEventPayload) => pushIfMatch(payload)
+  const recordListener = (payload: DoorEventPayload) => pushIfMatch(payload)
 
   doorEventEmitter.on('door-pressed', pressedListener)
   doorEventEmitter.on('dash-pressed', openedListener)
+  doorEventEmitter.on('record-pressed', recordListener)
   event.node.res.on('close', () => {
     doorEventEmitter.off('door-pressed', pressedListener)
     doorEventEmitter.off('dash-pressed', openedListener)
+    doorEventEmitter.off('record-pressed', recordListener)
     stream.close()
   })
 

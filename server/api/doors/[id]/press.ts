@@ -1,6 +1,7 @@
 import { createError, setResponseHeader } from 'h3'
 import { getDoorIdParam, getDoorOrThrow } from '../../../utils/doors'
 import { doorEventEmitter } from '../../../utils/doorEvents'
+import { record } from 'valibot'
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method?.toUpperCase()
@@ -16,15 +17,16 @@ export default defineEventHandler(async (event) => {
   const id = getDoorIdParam(event)
   const door = await getDoorOrThrow(id)
   const triggeredAt = new Date().toISOString()
-  const body = await readBody<{ source?: 'door' | 'dash', customName?: string }>(event)
+  const body = await readBody<{ source?: 'door' | 'dash' | 'record', customName?: string, idFrom?: number }>(event)
   const source = body?.source ?? 'door'
 
 
   const payload = {
     id,
+    idFrom: body.idFrom,
     triggeredAt,
-    triggeredFrom: body.customName,
     name: door.name,
+    nameFrom: body.customName,
     type: source
   }
 

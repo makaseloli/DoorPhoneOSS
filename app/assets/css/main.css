@@ -2,7 +2,7 @@
 @import "@nuxt/ui";
 
 @theme static {
-  --font-sans: 'IBM Plex Mono', 'IBM Plex Sans JP', sans-serif;
+  --font-sans: 'IBM Plex Sans JP', sans-serif;
 
   --color-green-50: #EFFDF5;
   --color-green-100: #D9FBE8;

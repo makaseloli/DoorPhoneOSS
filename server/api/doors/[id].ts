@@ -5,6 +5,10 @@ export default defineEventHandler(async (event) => {
   const method = event.node.req.method?.toUpperCase()
   const id = getDoorIdParam(event)
 
+  if (id === 0) {
+    return { id: 0, name: 'ダッシュボード' }
+  }
+
   switch (method) {
     case 'GET':
       return getDoorOrThrow(id)

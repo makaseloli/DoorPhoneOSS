@@ -6,7 +6,7 @@ import prisma from './prisma'
 const parseDoorId = (rawId: string | undefined) => {
   const id = Number.parseInt((rawId ?? '').trim(), 10)
 
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!Number.isInteger(id) || id < 0) {
     throw createError({
       statusCode: 400,
       statusMessage: 'Invalid door id'
@@ -42,6 +42,10 @@ export const createDoor = (name: string) => {
 }
 
 export const getDoorOrThrow = async (id: number) => {
+  if (id == 0) {
+    return 'ダッシュボード'
+  }
+
   const door = await prisma.door.findUnique({ where: { id } })
 
   if (!door) {

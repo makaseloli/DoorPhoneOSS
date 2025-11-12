@@ -34,11 +34,6 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       {
-        name: 'IBM Plex Mono',
-        weights: [100, 200, 300, 400, 500, 600, 700],
-        styles: ['normal', 'italic']
-      },
-      {
         name: 'IBM Plex Sans JP',
         weights: [100, 200, 300, 400, 500, 600, 700],
         styles: ['normal']
