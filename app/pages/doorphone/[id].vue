@@ -279,7 +279,7 @@ onBeforeUnmount(() => {
 
 useHead(() => ({
   link: [
-    { rel: 'manifest', href: `/api/manifest/${sanitizedId}` }
+    { rel: 'manifest', href: `/api/doors/manifest/${sanitizedId}` }
   ]
 }))
 </script>

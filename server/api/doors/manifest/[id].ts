@@ -20,7 +20,19 @@ export default defineEventHandler(async (event) => {
       theme_color: '#0f172a',
       background_color: '#0f172a',
       orientation: 'landscape-primary',
-      icons: [],
+      icons: [
+        {
+          src: '/icons/512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+        },
+        {
+          src: '/icons/512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any maskable'
+        }
+      ],
       related_applications: [],
       prefer_related_applications: false,
       categories: ['productivity'],
@@ -45,7 +57,19 @@ export default defineEventHandler(async (event) => {
     theme_color: '#15803d',
     background_color: '#0f172a',
     orientation: 'landscape-primary',
-    icons: [],
+    icons: [
+      {
+        src: '/icons/512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+      },
+      {
+        src: '/icons/512x512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any maskable'
+      }
+    ],
     related_applications: [],
     prefer_related_applications: false,
     categories: ['productivity'],
