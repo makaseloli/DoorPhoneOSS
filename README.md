@@ -22,9 +22,6 @@ docker compose up
 http://0.0.0.0:34567/ ではデバイスの追加ができます。  
 http://0.0.0.0:34567/doorphone/<id> でドアホン画面を表示できます。
 
-## HTTPS化
-/certsにssl.crtとssl.keyを配置するとできます。
-
 ## スクリーンショット
 ![ダッシュボード](./screenshot/dashboard.webp)
 ![ドアホン画面](./screenshot/doorphone.webp)

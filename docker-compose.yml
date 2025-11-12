@@ -13,43 +13,12 @@ services:
       PORT: 34567
       NITRO_PORT: 34567
       NITRO_HOST: 0.0.0.0
-      NITRO_SSL_CERT: /certs/ssl.crt
-      NITRO_SSL_KEY: /certs/ssl.key
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
       - doorphone_data:/app/data
-      - ./certs/ssl.crt:/certs/ssl.crt:ro
-      - ./certs/ssl.key:/certs/ssl.key:ro
     restart: unless-stopped
     command: >-
-      sh -c "mkdir -p /app/data \
-        && (pnpm prisma migrate deploy || true) \
-        && pnpm prisma db push --accept-data-loss \
-        && if [ -n \"$${NITRO_SSL_CERT:-}\" ] \
-        && [ -n \"$${NITRO_SSL_KEY:-}\" ] \
-        && [ -f \"$${NITRO_SSL_CERT}\" ] \
-        && [ -f \"$${NITRO_SSL_KEY}\" ] \
-        && grep -q -- '-----BEGIN CERTIFICATE-----' "$${NITRO_SSL_CERT}" \
-        && grep -Eq -- '-----BEGIN (.* )?PRIVATE KEY-----' "$${NITRO_SSL_KEY}"; then \
-          echo 'TLS certificates found, starting HTTPS-enabled server'; \
-            SANITIZED_CERT=$$(mktemp) \
-            && SANITIZED_KEY=$$(mktemp) \
-            && awk ' /-----BEGIN CERTIFICATE-----/ {copy=1} copy {print} /-----END CERTIFICATE-----/ {copy=0}' \"$${NITRO_SSL_CERT}\" > \"$${SANITIZED_CERT}\" \
-            && awk ' /-----BEGIN .*PRIVATE KEY-----/ {copy=1} copy {print} /-----END .*PRIVATE KEY-----/ {copy=0}' \"$${NITRO_SSL_KEY}\" > \"$${SANITIZED_KEY}\"; \
-            if [ -s \"$${SANITIZED_CERT}\" ] \
-            && [ -s \"$${SANITIZED_KEY}\" ]; then \
-              export NITRO_SSL_CERT=\"$${SANITIZED_CERT}\"; \
-              export NITRO_SSL_KEY=\"$${SANITIZED_KEY}\"; \
-            else \
-              echo 'TLS certificates invalid after sanitization, starting without HTTPS'; \
-              unset NITRO_SSL_CERT NITRO_SSL_KEY; \
-              rm -f \"$${SANITIZED_CERT}\" \"$${SANITIZED_KEY}\"; \
-            fi; \
-            else \
-              echo 'TLS certificates missing or invalid, starting without HTTPS'; \
-              unset NITRO_SSL_CERT NITRO_SSL_KEY; \
-            fi \
-            && node .output/server/index.mjs"
+      sh -c "mkdir -p /app/data && (pnpm prisma migrate deploy || true) && pnpm prisma db push --accept-data-loss && node .output/server/index.mjs"
 
 volumes:
   doorphone_data:
