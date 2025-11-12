@@ -14,12 +14,11 @@ export default defineEventHandler(async (event) => {
       name: 'DoorPhone Dashboard',
       short_name: 'Dashboard',
       lang: 'ja-JP',
-      display: 'standalone',
+      display: 'fullscreen',
       start_url: '/',
       scope: '/',
       theme_color: '#0f172a',
       background_color: '#0f172a',
-      orientation: 'landscape-primary',
       icons: [
         {
           src: '/512x512.png',
@@ -56,7 +55,6 @@ export default defineEventHandler(async (event) => {
     scope: `/doorphone/${doorId}`,
     theme_color: '#15803d',
     background_color: '#0f172a',
-    orientation: 'landscape-primary',
     icons: [
       {
         src: '/512x512.png',
