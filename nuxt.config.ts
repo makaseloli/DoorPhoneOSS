@@ -40,4 +40,6 @@ export default defineNuxtConfig({
       }
     ],
   },
+
+  plugins: ['~/plugins/wakeLock.client.ts'],
 })

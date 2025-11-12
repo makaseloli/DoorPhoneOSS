@@ -13,12 +13,28 @@ services:
       PORT: 34567
       NITRO_PORT: 34567
       NITRO_HOST: 0.0.0.0
+      NITRO_SSL_CERT: /certs/ssl.crt
+      NITRO_SSL_KEY: /certs/ssl.key
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
     volumes:
       - doorphone_data:/app/data
+      - ./certs/ssl.crt:/certs/ssl.crt:ro
+      - ./certs/ssl.key:/certs/ssl.key:ro
     restart: unless-stopped
     command: >-
-      sh -c "mkdir -p /app/data && (pnpm prisma migrate deploy || true) && pnpm prisma db push --accept-data-loss && node .output/server/index.mjs"
+      sh -c "mkdir -p /app/data \
+        && (pnpm prisma migrate deploy || true) \
+        && pnpm prisma db push --accept-data-loss \
+        && if [ -n \"${NITRO_SSL_CERT:-}\" ] \
+        && [ -n \"${NITRO_SSL_KEY:-}\" ] \
+        && [ -f \"${NITRO_SSL_CERT}\" ] \
+        && [ -f \"${NITRO_SSL_KEY}\" ]; then \
+          echo 'TLS certificates found, starting HTTPS-enabled server'; \
+        else \
+          echo 'TLS certificates missing, starting without HTTPS'; \
+          unset NITRO_SSL_CERT NITRO_SSL_KEY; \
+        fi \
+        && node .output/server/index.mjs"
 
 volumes:
   doorphone_data:
