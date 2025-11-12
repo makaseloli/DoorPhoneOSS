@@ -25,7 +25,9 @@ logs
 dev.db
 migrations
 
-push.mp3
-ring.mp3
-voice.mp3
 public/temp/
+public/push.mp3
+public/ring.mp3
+public/voice.mp3
+certs/ssl.crt
+certs/ssl.key
