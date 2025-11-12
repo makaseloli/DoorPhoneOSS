@@ -1,10 +1,7 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: [
-    '@nuxt/eslint',
-    '@nuxt/ui',
-    // "@prisma/nuxt"
-  ],
+  modules: ['@nuxt/eslint', // "@prisma/nuxt"
+    '@nuxt/ui', '@vite-pwa/nuxt'],
 
   devtools: {
     enabled: true
@@ -42,4 +39,15 @@ export default defineNuxtConfig({
   },
 
   plugins: ['~/plugins/wakeLock.client.ts'],
+
+  pwa: {
+    registerType: 'autoUpdate',
+    workbox: {
+      navigateFallback: null
+    },
+    devOptions: {
+      enabled: true,
+      type: "module"
+    },
+  }
 })
