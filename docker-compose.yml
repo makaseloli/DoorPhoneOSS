@@ -25,10 +25,10 @@ services:
       sh -c "mkdir -p /app/data \
         && (pnpm prisma migrate deploy || true) \
         && pnpm prisma db push --accept-data-loss \
-        && if [ -n \"${NITRO_SSL_CERT:-}\" ] \
-        && [ -n \"${NITRO_SSL_KEY:-}\" ] \
-        && [ -f \"${NITRO_SSL_CERT}\" ] \
-        && [ -f \"${NITRO_SSL_KEY}\" ]; then \
+        && if [ -n \"$${NITRO_SSL_CERT:-}\" ] \
+        && [ -n \"$${NITRO_SSL_KEY:-}\" ] \
+        && [ -f \"$${NITRO_SSL_CERT}\" ] \
+        && [ -f \"$${NITRO_SSL_KEY}\" ]; then \
           echo 'TLS certificates found, starting HTTPS-enabled server'; \
         else \
           echo 'TLS certificates missing, starting without HTTPS'; \
