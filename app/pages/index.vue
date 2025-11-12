@@ -292,6 +292,12 @@ onBeforeUnmount(() => {
   stopDoorsWatch?.()
   detachAllSources()
 })
+
+useHead({
+  link: [
+    { rel: 'manifest', href: '/api/doors/manifest/0' }
+  ]
+})
 </script>
 
 <template>

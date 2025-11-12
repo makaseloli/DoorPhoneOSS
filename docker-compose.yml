@@ -28,13 +28,15 @@ services:
         && if [ -n \"$${NITRO_SSL_CERT:-}\" ] \
         && [ -n \"$${NITRO_SSL_KEY:-}\" ] \
         && [ -f \"$${NITRO_SSL_CERT}\" ] \
-        && [ -f \"$${NITRO_SSL_KEY}\" ]; then \
-          echo 'TLS certificates found, starting HTTPS-enabled server'; \
-        else \
-          echo 'TLS certificates missing, starting without HTTPS'; \
-          unset NITRO_SSL_CERT NITRO_SSL_KEY; \
-        fi \
-        && node .output/server/index.mjs"
+        && [ -f \"$${NITRO_SSL_KEY}\" ] \
+        && grep -q '-----BEGIN CERTIFICATE-----' \"$${NITRO_SSL_CERT}\" \
+        && grep -Eq '-----BEGIN (.* )?PRIVATE KEY-----' \"$${NITRO_SSL_KEY}\"; then \
+                echo 'TLS certificates found, starting HTTPS-enabled server'; \
+              else \
+                echo 'TLS certificates missing or invalid, starting without HTTPS'; \
+                unset NITRO_SSL_CERT NITRO_SSL_KEY; \
+              fi \
+              && node .output/server/index.mjs"
 
 volumes:
   doorphone_data:

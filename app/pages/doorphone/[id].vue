@@ -276,6 +276,12 @@ onBeforeUnmount(() => {
   }
   detachSource()
 })
+
+useHead(() => ({
+  link: [
+    { rel: 'manifest', href: `/api/manifest/${sanitizedId}` }
+  ]
+}))
 </script>
 
 <template>
