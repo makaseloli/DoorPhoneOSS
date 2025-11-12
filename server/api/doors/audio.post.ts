@@ -1,6 +1,5 @@
 import { createError, readMultipartFormData } from 'h3'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { useStorage } from '#imports'
 
 export default defineEventHandler(async (event) => {
     const form = await readMultipartFormData(event)
@@ -28,12 +27,9 @@ export default defineEventHandler(async (event) => {
         })
     }
 
-    const recordingsDir = join(process.cwd(), 'public', 'temp')
-    await mkdir(recordingsDir, { recursive: true })
-
     const filename = audioEntry.filename
-    const filePath = join(recordingsDir, filename)
-    await writeFile(filePath, audioEntry.data)
+    const storage = useStorage('assets')
+    await storage.setItemRaw(`temp/${filename}`, audioEntry.data)
 
     return {
         ok: true,

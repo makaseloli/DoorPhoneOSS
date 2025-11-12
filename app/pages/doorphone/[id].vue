@@ -301,11 +301,11 @@ useHead(() => ({
     <div class="flex gap-4">
       <UAlert v-if="lastnameFrom" title="呼び出しがありました。"
         :description="lastnameFrom ? `${lastnameFrom[0]}から${lastnameFrom[1]}に呼び出されました。` : ''" close
-        close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral" class="cursor-pointer"
-        @click="lastnameFrom = null" />
+        close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral"
+        class="cursor-pointer" @click="lastnameFrom = null" />
       <UAlert v-if="receivedRecordings.length > 0" title="録音が届いています。"
-        :description="`受け取った録音が${receivedRecordings.length}件あります。`" icon="ic:outline-mic-none" variant="outline" class="cursor-pointer"
-        color="neutral" @click="receivedRecordingsState = true" />
+        :description="`受け取った録音が${receivedRecordings.length}件あります。`" icon="ic:outline-mic-none" variant="outline"
+        class="cursor-pointer" color="neutral" @click="receivedRecordingsState = true" />
     </div>
 
     <UButton color="primary"
@@ -325,8 +325,11 @@ useHead(() => ({
       <div v-if="doorsPending" class="py-4 text-center text-neutral-500">
         <UProgress color="neutral" animation="swing" />
       </div>
-      <div v-else-if="otherDoors.length === 0" class="py-4 text-center text-neutral-500">
-        他の部屋は登録されていません。
+      <div v-else-if="otherDoors.length === 0" class="text-center text-neutral-500">
+        <UButton color="primary" variant="solid" icon="ic:outline-call-made" block
+          @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0" v-if="rawId != '0'">
+          ダッシュボード
+        </UButton>
       </div>
       <div v-else class="space-y-3">
         <UButton v-for="door in otherDoors" :key="door.id" color="neutral" variant="solid" block
