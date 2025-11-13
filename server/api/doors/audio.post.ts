@@ -28,8 +28,8 @@ export default defineEventHandler(async (event) => {
     }
 
     const filename = audioEntry.filename
-    const storage = useStorage('assets')
-    await storage.setItemRaw(`temp/${filename}`, audioEntry.data)
+    const storage = useStorage('temp')
+    await storage.setItemRaw(filename, audioEntry.data)
 
     return {
         ok: true,

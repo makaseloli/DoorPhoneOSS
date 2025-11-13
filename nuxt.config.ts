@@ -51,5 +51,14 @@ export default defineNuxtConfig({
       enabled: true,
       type: "module"
     },
+  },
+
+  nitro: {
+    storage: {
+      temp: {
+        driver: 'fs',
+        base: 'data/temp'
+      }
+    }
   }
 })
