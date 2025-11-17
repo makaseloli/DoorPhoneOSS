@@ -40,6 +40,10 @@ const lastTriggers = reactive<Record<number, string>>({})
 const sources = new Map<number, EventSource>()
 const reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>()
 const reconnectAttempts = new Map<number, number>()
+
+const sseConnected = reactive<Record<number, boolean>>({})
+const sseLongDisconnected = reactive<Record<number, boolean>>({})
+const disconnectTimers = new Map<number, ReturnType<typeof setTimeout>>()
 let chime: HTMLAudioElement | null = null
 let ring: HTMLAudioElement | null = null
 let voice: HTMLAudioElement | null = null
@@ -111,6 +115,14 @@ const detachSource = (doorId: number) => {
     clearTimeout(timer)
     reconnectTimers.delete(doorId)
   }
+
+  sseConnected[doorId] = false
+  sseLongDisconnected[doorId] = false
+  const dTimer = disconnectTimers.get(doorId)
+  if (dTimer) {
+    clearTimeout(dTimer)
+    disconnectTimers.delete(doorId)
+  }
 }
 
 const detachAllSources = () => {
@@ -132,12 +144,16 @@ const attachSource = (doorId: number) => {
   if (sources.has(doorId)) return
   const source = new EventSource(`/api/doors/${doorId}/events`)
   reconnectAttempts.set(doorId, 0)
+
+  sseConnected[doorId] = false
   source.onmessage = (evt) => {
     try {
-      const payload = JSON.parse(evt.data) as { triggeredAt: string; nameFrom?: string; name?: string; type: 'door' | 'dash' | 'record'; idFrom: number }
+      const payload = JSON.parse(evt.data) as { triggeredAt?: string; nameFrom?: string; name?: string; type?: string; idFrom?: number }
+      if (!payload.type || payload.type === 'ping') return
+      if (!payload.triggeredAt) return
       const timeLabel = formatTime(payload.triggeredAt)
 
-      switch (payload.type) {
+      switch (payload.type as 'door' | 'dash' | 'record') {
         case 'door': {
           lastTriggers[doorId] = timeLabel
           const doorName = payload.name ?? doorItems.value.find((door) => door.id === doorId)?.name ?? `ID ${doorId}`
@@ -176,7 +192,9 @@ const attachSource = (doorId: number) => {
           if (doorId !== DASHBOARD_DOOR_ID) break
           const targetDoorId = doorId
           const cacheKey = payload.triggeredAt
-          const existingRecord = receivedRecordings.value.find((record) => record.from === payload.idFrom && record.at === targetDoorId)
+          const idFrom = payload.idFrom ?? null
+          if (idFrom === null) break
+          const existingRecord = receivedRecordings.value.find((record) => record.from === idFrom && record.at === targetDoorId)
 
           if (existingRecord) {
             existingRecord.time = timeLabel
@@ -184,7 +202,7 @@ const attachSource = (doorId: number) => {
             existingRecord.fromName = payload.nameFrom ?? ''
           } else {
             receivedRecordings.value.push({
-              from: payload.idFrom,
+              from: idFrom,
               at: targetDoorId,
               fromName: payload.nameFrom ?? '',
               time: timeLabel,
@@ -217,9 +235,25 @@ const attachSource = (doorId: number) => {
   }
   source.onopen = () => {
     reconnectAttempts.set(doorId, 0)
+
+    sseConnected[doorId] = true
+    sseLongDisconnected[doorId] = false
+    const dTimer = disconnectTimers.get(doorId)
+    if (dTimer) {
+      clearTimeout(dTimer)
+      disconnectTimers.delete(doorId)
+    }
   }
   source.onerror = (error) => {
     console.error('Door events stream error', doorId, error)
+
+    sseConnected[doorId] = false
+    if (!disconnectTimers.has(doorId)) {
+      const timer = setTimeout(() => {
+        sseLongDisconnected[doorId] = true
+      }, 30000)
+      disconnectTimers.set(doorId, timer)
+    }
     detachSource(doorId)
     scheduleReconnect(doorId)
   }
@@ -306,6 +340,12 @@ useHead({
       <UDashboardNavbar title="ドアホン" icon="ic:outline-door-front">
         <template #right>
           <UButton icon="ic:outline-add" color="neutral" variant="ghost" @click="openAddModal = true" />
+          <div v-if="sseConnected">
+            <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
+          </div>
+          <div v-else>
+            <UButton icon="ic:outline-wifi-tethering-error" color="error" variant="ghost" />
+          </div>
           <UColorModeButton />
         </template>
       </UDashboardNavbar>

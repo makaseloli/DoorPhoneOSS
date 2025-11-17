@@ -141,6 +141,10 @@ let eventSource: EventSource | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let reconnectAttempt = 0
 
+const sseConnected = ref(false)
+const sseLongDisconnected = ref(false)
+let sseDisconnectTimer: ReturnType<typeof setTimeout> | null = null
+
 const updateTime = () => {
   currentTime.value = formatTime(new Date().toISOString())
 }
@@ -153,6 +157,12 @@ const detachSource = () => {
   if (reconnectTimer) {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
+  }
+  sseConnected.value = false
+  sseLongDisconnected.value = false
+  if (sseDisconnectTimer) {
+    clearTimeout(sseDisconnectTimer)
+    sseDisconnectTimer = null
   }
 }
 
@@ -170,13 +180,18 @@ const attachSource = () => {
   if (eventSource) return
   const source = new EventSource(`/api/doors/${sanitizedId}/events`)
   reconnectAttempt = 0
+  sseConnected.value = false
   source.onmessage = (evt) => {
     try {
-      const payload = JSON.parse(evt.data) as { triggeredAt: string; nameFrom?: string; name?: string, type: 'door' | 'dash' | 'record', idFrom: number }
+      const payload = JSON.parse(evt.data) as { triggeredAt?: string; nameFrom?: string; name?: string, type?: string, idFrom?: number }
+      if (!payload.type || payload.type === 'ping') return
+      if (!payload.triggeredAt) return
       const timeLabel = formatTime(payload.triggeredAt)
       lastRingAt.value = timeLabel
       console.log('Received door event', payload)
       switch (payload.type) {
+        case 'ping':
+          return
         case 'door':
           toast.add({
             title: '呼び出し完了!',
@@ -210,13 +225,15 @@ const attachSource = () => {
         case 'record': {
           const targetDoorId = currentDoorId
           const cacheKey = payload.triggeredAt
-          const existingRecord = receivedRecordings.value.find((record) => record.from === payload.idFrom && record.at === targetDoorId)
+          const idFrom = payload.idFrom ?? null
+          if (idFrom === null) break
+          const existingRecord = receivedRecordings.value.find((record) => record.from === idFrom && record.at === targetDoorId)
 
           if (existingRecord) {
             existingRecord.time = timeLabel
             existingRecord.cacheKey = cacheKey
           } else {
-            receivedRecordings.value.push({ from: payload.idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey })
+            receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey })
           }
 
           toast.add({
@@ -246,9 +263,19 @@ const attachSource = () => {
   }
   source.onopen = () => {
     reconnectAttempt = 0
+    sseConnected.value = true
+    sseLongDisconnected.value = false
+    if (sseDisconnectTimer) {
+      clearTimeout(sseDisconnectTimer)
+      sseDisconnectTimer = null
+    }
   }
   source.onerror = (error) => {
     console.error('Door events stream error', sanitizedId, error)
+    sseConnected.value = false
+    if (!sseDisconnectTimer) {
+      sseDisconnectTimer = setTimeout(() => sseLongDisconnected.value = true, 30000)
+    }
     detachSource()
     scheduleReconnect()
   }
@@ -293,6 +320,12 @@ useHead(() => ({
     <template #right>
       <UBadge color="neutral">ID: {{ rawId }}</UBadge>
       <UBadge v-if="lastRingAt" color="primary">最終呼び出し: {{ lastRingAt }}</UBadge>
+      <div v-if="sseConnected">
+        <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
+      </div>
+      <div v-else>
+        <UButton icon="ic:outline-wifi-tethering-error" color="error" variant="ghost" />
+      </div>
       <UColorModeButton />
     </template>
   </UHeader>

@@ -37,10 +37,19 @@ export default defineEventHandler((event) => {
   doorEventEmitter.on('door-pressed', pressedListener)
   doorEventEmitter.on('dash-pressed', openedListener)
   doorEventEmitter.on('record-pressed', recordListener)
+
+  const KEEPALIVE_MS = Number(process.env.SSE_KEEPALIVE_MS ?? 20000)
+  const keepaliveTimer = setInterval(() => {
+    try {
+      stream.push(JSON.stringify({ type: 'ping', ts: new Date().toISOString() }))
+    } catch (err) {
+    }
+  }, KEEPALIVE_MS)
   event.node.res.on('close', () => {
     doorEventEmitter.off('door-pressed', pressedListener)
     doorEventEmitter.off('dash-pressed', openedListener)
     doorEventEmitter.off('record-pressed', recordListener)
+    clearInterval(keepaliveTimer)
     stream.close()
   })
 

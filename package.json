@@ -2,6 +2,7 @@
   "name": "DoorPhone",
   "private": true,
   "type": "module",
+  "version": "alpha",
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev --host",
