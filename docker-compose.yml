@@ -10,6 +10,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: file:/app/data/dev.db
+      DASHBOARD_WEBHOOK_URL: ${DASHBOARD_WEBHOOK_URL}
       PORT: 34567
       NITRO_PORT: 34567
       NITRO_HOST: 0.0.0.0
