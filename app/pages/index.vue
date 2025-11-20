@@ -386,7 +386,7 @@ useHead({
                   :to="`/doorphone/${door.id}`" />
                 <UButton label="呼ぶ" color="primary" icon="ic:outline-call-made"
                   @click="openCallModal = { id: door.id, state: true }" />
-                <UButton label="Webhook" color="neutral" icon="ic:outline-notifications"
+                <UButton label="Webhook" color="neutral" icon="ic:outline-webhook"
                   @click="openWebhookEditor(door)" />
                 <UButton label="削除" color="error" icon="ic:outline-delete" @click="openDeleteModal(door.id)" />
               </template>
