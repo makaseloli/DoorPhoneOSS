@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { createError } from '#app'
 import { onBeforeUnmount, onMounted } from 'vue'
+import { parseDoorEventMessage } from '~/utils/doorEvents'
 
 interface Door {
   id: number
@@ -27,8 +28,8 @@ const triggeringDoorId = ref<number | null>(null)
 
 const lastnameFrom = ref<[string, string] | null>(null)
 
-const openCallModal = ref<idAndState>({ id: 0, state: false });
-const openRecordModal = ref<idAndState>({ id: 0, state: false });
+const openCallModal = ref<idAndState>({ id: 0, state: false })
+const openRecordModal = ref<idAndState>({ id: 0, state: false })
 
 const receivedRecordings = ref<ReceivedRecording[]>([])
 const receivedRecordingsState = ref<boolean>(false)
@@ -39,12 +40,12 @@ const sanitizedId = rawId?.toString().trim() ?? ''
 if (!/^\d+$/.test(sanitizedId)) {
   throw createError({
     statusCode: 400,
-    statusMessage: 'Invalid door id',
+    statusMessage: 'Invalid door id'
   })
 }
 
-const { data: device, error, pending } = await useFetch<Door>(`/api/doors/${sanitizedId}`, {
-  key: `door-${sanitizedId}`,
+const { data: device, error } = await useFetch<Door>(`/api/doors/${sanitizedId}`, {
+  key: `door-${sanitizedId}`
 })
 
 const {
@@ -60,14 +61,14 @@ const {
 if (error.value) {
   throw createError({
     statusCode: error.value.statusCode ?? 500,
-    statusMessage: error.value.statusMessage ?? 'Failed to load door data',
+    statusMessage: error.value.statusMessage ?? 'Failed to load door data'
   })
 }
 
 const currentDoorId = Number.parseInt(sanitizedId, 10)
 
 const deviceName = computed(() => device.value?.name ?? 'ドアホン')
-const otherDoors = computed(() => (doors.value ?? []).filter((door) => door.id !== currentDoorId))
+const otherDoors = computed(() => (doors.value ?? []).filter(door => door.id !== currentDoorId))
 
 const currentTime = ref<string>('--:--:--')
 const lastRingAt = ref<string | null>(null)
@@ -131,7 +132,7 @@ const openTriggerModal = async () => {
     console.error('Failed to load doors', error)
   }
   triggerModalState.value = true
-}
+};
 
 let intervalId: ReturnType<typeof setInterval> | null = null
 let chime: HTMLAudioElement | null = null
@@ -143,13 +144,31 @@ let reconnectAttempt = 0
 
 const sseConnected = ref(false)
 const sseLongDisconnected = ref(false)
-let sseDisconnectTimer: ReturnType<typeof setTimeout> | null = null
+const PING_TIMEOUT_MS = 45000
+let pingTimeout: ReturnType<typeof setTimeout> | null = null
 
 const updateTime = () => {
   currentTime.value = formatTime(new Date().toISOString())
+};
+
+const clearPingTimeout = () => {
+  if (pingTimeout) {
+    clearTimeout(pingTimeout)
+    pingTimeout = null
+  }
 }
 
-const detachSource = () => {
+const markSseConnected = () => {
+  sseConnected.value = true
+  sseLongDisconnected.value = false
+  clearPingTimeout()
+  pingTimeout = setTimeout(() => {
+    sseConnected.value = false
+    sseLongDisconnected.value = true
+  }, PING_TIMEOUT_MS)
+};
+
+const detachSource = (resetState = true) => {
   if (eventSource) {
     eventSource.close()
     eventSource = null
@@ -158,11 +177,10 @@ const detachSource = () => {
     clearTimeout(reconnectTimer)
     reconnectTimer = null
   }
-  sseConnected.value = false
-  sseLongDisconnected.value = false
-  if (sseDisconnectTimer) {
-    clearTimeout(sseDisconnectTimer)
-    sseDisconnectTimer = null
+  clearPingTimeout()
+  if (resetState) {
+    sseConnected.value = false
+    sseLongDisconnected.value = false
   }
 }
 
@@ -174,7 +192,7 @@ const scheduleReconnect = () => {
     reconnectTimer = null
     attachSource()
   }, delay)
-}
+};
 
 const attachSource = () => {
   if (eventSource) return
@@ -182,105 +200,103 @@ const attachSource = () => {
   reconnectAttempt = 0
   sseConnected.value = false
   source.onmessage = (evt) => {
-    try {
-      const payload = JSON.parse(evt.data) as { triggeredAt?: string; nameFrom?: string; name?: string, type?: string, idFrom?: number }
-      if (!payload.type || payload.type === 'ping') return
-      if (!payload.triggeredAt) return
-      const timeLabel = formatTime(payload.triggeredAt)
-      lastRingAt.value = timeLabel
-      console.log('Received door event', payload)
-      switch (payload.type) {
-        case 'ping':
-          return
-        case 'door':
-          toast.add({
-            title: '呼び出し完了!',
-            icon: 'ic:outline-check'
-          })
-          if (chime) {
-            try {
-              const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
-              void chimeInstance.play()
-            } catch (playError) {
-              console.warn('Audio playback blocked', playError)
-            }
-          }
-          break
-        case 'dash':
-          toast.add({
-            title: `${payload.nameFrom}から呼び出し`,
-            description: `${payload.name}が${timeLabel}に押されました。`,
-            icon: 'ic:outline-call-received'
-          })
-          lastnameFrom.value = [payload.nameFrom ?? '', timeLabel]
-          if (ring) {
-            try {
-              const ringInstance = ring.cloneNode(true) as HTMLAudioElement
-              void ringInstance.play()
-            } catch (playError) {
-              console.warn('Audio playback blocked', playError)
-            }
-          }
-          break
-        case 'record': {
-          const targetDoorId = currentDoorId
-          const cacheKey = payload.triggeredAt
-          const idFrom = payload.idFrom ?? null
-          if (idFrom === null) break
-          const existingRecord = receivedRecordings.value.find((record) => record.from === idFrom && record.at === targetDoorId)
-
-          if (existingRecord) {
-            existingRecord.time = timeLabel
-            existingRecord.cacheKey = cacheKey
-          } else {
-            receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey })
-          }
-
-          toast.add({
-            title: `録音呼び出し`,
-            description: `${payload.nameFrom}から録音が届きました。`,
-            icon: 'ic:outline-mic-none'
-          })
-          if (voice) {
-            try {
-              const voiceInstance = voice.cloneNode(true) as HTMLAudioElement
-              void voiceInstance.play()
-            } catch (playError) {
-              console.warn('Audio playback blocked', playError)
-            }
-          }
-          break
-        }
-      }
-    } catch (error) {
-      console.warn('Received non-JSON event payload', evt.data, error)
+    const parsed = parseDoorEventMessage(evt.data)
+    if (parsed.kind === 'ping') {
+      markSseConnected()
+      return;
+    }
+    if (parsed.kind === 'invalid') {
+      console.warn('Received invalid event payload', evt.data, parsed.error)
       toast.add({
         title: '呼び出し失敗',
         icon: 'ic:outline-error-outline',
         color: 'error'
       })
+      return;
+    }
+    const payload = parsed.payload
+    const timeLabel = formatTime(payload.triggeredAt)
+    lastRingAt.value = timeLabel
+    console.log('Received door event', payload)
+    markSseConnected()
+    switch (payload.type) {
+      case 'door':
+        toast.add({
+          title: '呼び出し完了!',
+          icon: 'ic:outline-check'
+        })
+      if (chime) {
+          try {
+            const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
+          void chimeInstance.play()
+        } catch (playError) {
+            console.warn('Audio playback blocked', playError)
+        }
+        }
+        break;
+      case 'dash':
+        toast.add({
+          title: `${payload.nameFrom}から呼び出し`,
+          description: `${payload.name}が${timeLabel}に押されました。`,
+          icon: 'ic:outline-call-received'
+        })
+      lastnameFrom.value = [payload.nameFrom ?? '', timeLabel]
+      if (ring) {
+          try {
+            const ringInstance = ring.cloneNode(true) as HTMLAudioElement
+          void ringInstance.play()
+        } catch (playError) {
+            console.warn('Audio playback blocked', playError)
+        }
+        }
+        break;
+      case 'record': {
+        const targetDoorId = currentDoorId
+      const cacheKey = payload.triggeredAt
+      const idFrom = payload.idFrom ?? null
+      if (idFrom === null) break
+      const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId)
+
+      if (existingRecord) {
+          existingRecord.time = timeLabel
+        existingRecord.cacheKey = cacheKey
+      } else {
+          receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey })
+      }
+
+        toast.add({
+          title: '録音呼び出し',
+          description: `${payload.nameFrom}から録音が届きました。`,
+          icon: 'ic:outline-mic-none'
+        })
+      if (voice) {
+          try {
+            const voiceInstance = voice.cloneNode(true) as HTMLAudioElement
+          void voiceInstance.play()
+        } catch (playError) {
+            console.warn('Audio playback blocked', playError)
+        }
+        }
+        break;
+      }
+      default:
+        break;
     }
   }
   source.onopen = () => {
     reconnectAttempt = 0
-    sseConnected.value = true
-    sseLongDisconnected.value = false
-    if (sseDisconnectTimer) {
-      clearTimeout(sseDisconnectTimer)
-      sseDisconnectTimer = null
-    }
-  }
+    markSseConnected()
+  };
   source.onerror = (error) => {
     console.error('Door events stream error', sanitizedId, error)
     sseConnected.value = false
-    if (!sseDisconnectTimer) {
-      sseDisconnectTimer = setTimeout(() => sseLongDisconnected.value = true, 30000)
-    }
-    detachSource()
+    sseLongDisconnected.value = true
+    clearPingTimeout()
+    detachSource(false)
     scheduleReconnect()
-  }
+  };
   eventSource = source
-}
+};
 
 onMounted(() => {
   updateTime()
@@ -294,7 +310,7 @@ onMounted(() => {
   ring.preload = 'auto'
   voice.preload = 'auto'
   attachSource()
-})
+});
 
 onBeforeUnmount(() => {
   if (intervalId) {
@@ -302,7 +318,7 @@ onBeforeUnmount(() => {
     intervalId = null
   }
   detachSource()
-})
+});
 
 useHead(() => ({
   link: [
@@ -312,120 +328,265 @@ useHead(() => ({
 </script>
 
 <template>
-  <UHeader>
-    <template #left>
-      <h1 class="font-bold">{{ deviceName }}</h1>
-      <UBadge color="neutral" variant="outline">{{ currentTime }}</UBadge>
-    </template>
-    <template #right>
-      <UBadge color="neutral">ID: {{ rawId }}</UBadge>
-      <UBadge v-if="lastRingAt" color="primary">最終呼び出し: {{ lastRingAt }}</UBadge>
-      <div v-if="sseConnected">
-        <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
-      </div>
-      <div v-else>
-        <UButton icon="ic:outline-wifi-tethering-error" color="error" variant="ghost" />
-      </div>
-      <UColorModeButton />
-    </template>
-  </UHeader>
-  <UContainer class="mt-8 mx-auto max-w-[800px]">
-
-    <div class="flex gap-4">
-      <UAlert v-if="lastnameFrom" title="呼び出しがありました。"
-        :description="lastnameFrom ? `${lastnameFrom[0]}から${lastnameFrom[1]}に呼び出されました。` : ''" close
-        close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral"
-        class="cursor-pointer" @click="lastnameFrom = null" />
-      <UAlert v-if="receivedRecordings.length > 0" title="録音が届いています。"
-        :description="`受け取った録音が${receivedRecordings.length}件あります。`" icon="ic:outline-mic-none" variant="outline"
-        class="cursor-pointer" color="neutral" @click="receivedRecordingsState = true" />
-    </div>
-
-    <UButton color="primary"
-      class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-      @click="triggerDoor()" size="xl" v-if="rawId != '0'">
-      <p class="text-center">呼ぶ</p>
-    </UButton>
-    <UButton color="neutral"
-      class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-      @click="openTriggerModal()" size="xl">
-      <p class="text-center">他の部屋を呼ぶ</p>
-    </UButton>
-  </UContainer>
-
-  <UModal v-model:open="triggerModalState" title="どの部屋を呼びますか?">
-    <template #body>
-      <div v-if="doorsPending" class="py-4 text-center text-neutral-500">
-        <UProgress color="neutral" animation="swing" />
-      </div>
-      <div v-else-if="otherDoors.length === 0" class="text-center text-neutral-500">
-        <UButton color="primary" variant="solid" icon="ic:outline-call-made" block
-          @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0" v-if="rawId != '0'">
-          ダッシュボード
-        </UButton>
-      </div>
-      <div v-else class="space-y-3">
-        <UButton v-for="door in otherDoors" :key="door.id" color="neutral" variant="solid" block
-          :loading="triggeringDoorId === door.id" icon="ic:outline-call-made"
-          @click="openCallModal.id = door.id; openCallModal.name = door.name; openCallModal.state = true; triggerModalState = false">
-          {{ door.name }}
-        </UButton>
-        <UButton color="primary" variant="solid" icon="ic:outline-call-made" block
-          @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0" v-if="rawId != '0'">
-          ダッシュボード
-        </UButton>
-      </div>
-    </template>
-    <template #footer>
-      <UButton color="primary" @click="triggerModalState = false;" icon="ic:outline-clear">キャンセル
-      </UButton>
-    </template>
-  </UModal>
-
-  <UModal v-model:open="receivedRecordingsState" title="受け取った録音">
-    <template #body>
-      <div v-if="receivedRecordings.length === 0" class="py-4 text-center text-neutral-500">
-        受け取った録音はありません。
-      </div>
-      <div v-else class="space-y-4">
-        <div v-for="record in receivedRecordings" :key="`${record.from}-${record.at}-${record.cacheKey}`"
-          class="p-4 border border-neutral-200 rounded-lg">
-          <Player :from="record.from" :to="record.at" :nameFrom="record.fromName" :version="record.cacheKey" />
-          <p class="mt-2 text-sm text-neutral-500">受信時間: {{ record.time }}</p>
+  <div class="space-y-8">
+    <UHeader>
+      <template #left>
+        <h1 class="font-bold">
+          {{ deviceName }}
+        </h1>
+        <UBadge
+          color="neutral"
+          variant="outline"
+        >
+          {{ currentTime }}
+        </UBadge>
+      </template>
+      <template #right>
+        <UBadge color="neutral">
+          ID: {{ rawId }}
+        </UBadge>
+        <UBadge
+          v-if="lastRingAt"
+          color="primary"
+        >
+          最終呼び出し: {{ lastRingAt }}
+        </UBadge>
+        <div v-if="sseConnected">
+          <UButton
+            icon="ic:outline-wifi-tethering"
+            color="success"
+            variant="ghost"
+          />
         </div>
+        <div v-else-if="sseLongDisconnected">
+          <UButton
+            icon="ic:outline-wifi-tethering-error"
+            color="error"
+            variant="ghost"
+          />
+        </div>
+        <div v-else>
+          <UButton
+            icon="ic:outline-wifi-tethering"
+            color="neutral"
+            variant="ghost"
+            :loading="true"
+          />
+        </div>
+        <UColorModeButton />
+      </template>
+    </UHeader>
+    <UContainer class="mt-8 mx-auto max-w-[800px]">
+      <div class="flex gap-4">
+        <UAlert
+          v-if="lastnameFrom"
+          title="呼び出しがありました。"
+          :description="lastnameFrom ? `${lastnameFrom[0]}から${lastnameFrom[1]}に呼び出されました。` : ''"
+          close
+          close-icon="ic:outline-close"
+          icon="ic:outline-call-missed"
+          variant="outline"
+          color="neutral"
+          class="cursor-pointer"
+          @click="lastnameFrom = null"
+        />
+        <UAlert
+          v-if="receivedRecordings.length > 0"
+          title="録音が届いています。"
+          :description="`受け取った録音が${receivedRecordings.length}件あります。`"
+          icon="ic:outline-mic-none"
+          variant="outline"
+          class="cursor-pointer"
+          color="neutral"
+          @click="receivedRecordingsState = true"
+        />
       </div>
-    </template>
-  </UModal>
 
-  <UModal v-model:open="openCallModal.state" title="呼ぶ">
-    <template #body>
-      <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
-        @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0">
-        <p class="text-center">普通に呼ぶ</p>
+      <UButton
+        v-if="rawId != '0'"
+        color="primary"
+        class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        size="xl"
+        @click="triggerDoor()"
+      >
+        <p class="text-center">
+          呼ぶ
+        </p>
       </UButton>
-      <USeparator class="my-4" label="or" />
-      <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
-        @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0">
-        <p class="text-center">録音を送信</p>
+      <UButton
+        color="neutral"
+        class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        size="xl"
+        @click="openTriggerModal()"
+      >
+        <p class="text-center">
+          他の部屋を呼ぶ
+        </p>
       </UButton>
-    </template>
-    <template #footer>
-      <UButton color="primary"
-        @click="openCallModal.state = false; openCallModal.id = 0; openCallModal.name = undefined"
-        icon="ic:outline-clear">キャンセル
-      </UButton>
-    </template>
-  </UModal>
+    </UContainer>
 
-  <UModal v-model:open="openRecordModal.state" title="録音">
-    <template #body>
-      <Recorder :from="currentDoorId" :to="openRecordModal.id" :nameFrom="deviceName"
-        @sent="openRecordModal.state = false; openRecordModal.id = 0" />
-    </template>
-    <template #footer>
-      <UButton color="error" @click="openRecordModal.state = false; openRecordModal.id = 0" icon="ic:outline-clear">
-        キャンセル
-      </UButton>
-    </template>
-  </UModal>
+    <UModal
+      v-model:open="triggerModalState"
+      title="どの部屋を呼びますか?"
+    >
+      <template #body>
+        <div
+          v-if="doorsPending"
+          class="py-4 text-center text-neutral-500"
+        >
+          <UProgress
+            color="neutral"
+            animation="swing"
+          />
+        </div>
+        <div
+          v-else-if="otherDoors.length === 0"
+          class="text-center text-neutral-500"
+        >
+          <UButton
+            v-if="rawId != '0'"
+            color="primary"
+            variant="solid"
+            icon="ic:outline-call-made"
+            block
+            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0"
+          >
+            ダッシュボード
+          </UButton>
+        </div>
+        <div
+          v-else
+          class="space-y-3"
+        >
+          <UButton
+            v-for="door in otherDoors"
+            :key="door.id"
+            color="neutral"
+            variant="solid"
+            block
+            :loading="triggeringDoorId === door.id"
+            icon="ic:outline-call-made"
+            @click="openCallModal.id = door.id; openCallModal.name = door.name; openCallModal.state = true; triggerModalState = false"
+          >
+            {{ door.name }}
+          </UButton>
+          <UButton
+            v-if="rawId != '0'"
+            color="primary"
+            variant="solid"
+            icon="ic:outline-call-made"
+            block
+            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0"
+          >
+            ダッシュボード
+          </UButton>
+        </div>
+      </template>
+      <template #footer>
+        <UButton
+          color="primary"
+          icon="ic:outline-clear"
+          @click="triggerModalState = false;"
+        >
+          キャンセル
+        </UButton>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="receivedRecordingsState"
+      title="受け取った録音"
+    >
+      <template #body>
+        <div
+          v-if="receivedRecordings.length === 0"
+          class="py-4 text-center text-neutral-500"
+        >
+          受け取った録音はありません。
+        </div>
+        <div
+          v-else
+          class="space-y-4"
+        >
+          <div
+            v-for="record in receivedRecordings"
+            :key="`${record.from}-${record.at}-${record.cacheKey}`"
+            class="p-4 border border-neutral-200 rounded-lg"
+          >
+            <Player
+              :from="record.from"
+              :to="record.at"
+              :name-from="record.fromName"
+              :version="record.cacheKey"
+            />
+            <p class="mt-2 text-sm text-neutral-500">
+              受信時間: {{ record.time }}
+            </p>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="openCallModal.state"
+      title="呼ぶ"
+    >
+      <template #body>
+        <UButton
+          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+          size="xl"
+          @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0"
+        >
+          <p class="text-center">
+            普通に呼ぶ
+          </p>
+        </UButton>
+        <USeparator
+          class="my-4"
+          label="or"
+        />
+        <UButton
+          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+          size="xl"
+          @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0"
+        >
+          <p class="text-center">
+            録音を送信
+          </p>
+        </UButton>
+      </template>
+      <template #footer>
+        <UButton
+          color="primary"
+          icon="ic:outline-clear"
+          @click="openCallModal.state = false; openCallModal.id = 0; openCallModal.name = undefined"
+        >
+          キャンセル
+        </UButton>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="openRecordModal.state"
+      title="録音"
+    >
+      <template #body>
+        <Recorder
+          :from="currentDoorId"
+          :to="openRecordModal.id"
+          :name-from="deviceName"
+          @sent="openRecordModal.state = false; openRecordModal.id = 0"
+        />
+      </template>
+      <template #footer>
+        <UButton
+          color="error"
+          icon="ic:outline-clear"
+          @click="openRecordModal.state = false; openRecordModal.id = 0"
+        >
+          キャンセル
+        </UButton>
+      </template>
+    </UModal>
+  </div>
 </template>

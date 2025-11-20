@@ -8,7 +8,7 @@ export interface DoorEventPayload {
   triggeredAt: string
   name: string
   nameFrom: string
-  type: 'door' | 'dash' | 'record'
+  type: 'door' | 'dash' | 'record' | 'ping'
 }
 
 export default defineEventHandler((event) => {
@@ -28,7 +28,7 @@ export default defineEventHandler((event) => {
   const pushIfMatch = (payload: DoorEventPayload) => {
     if (payload.id !== id) return
     stream.push(JSON.stringify(payload))
-  }
+  };
 
   const pressedListener = (payload: DoorEventPayload) => pushIfMatch(payload)
   const openedListener = (payload: DoorEventPayload) => pushIfMatch(payload)
@@ -42,7 +42,8 @@ export default defineEventHandler((event) => {
   const keepaliveTimer = setInterval(() => {
     try {
       stream.push(JSON.stringify({ type: 'ping', ts: new Date().toISOString() }))
-    } catch (err) {
+    } catch (error) {
+      console.warn('Failed to send SSE keepalive for door', id, error)
     }
   }, KEEPALIVE_MS)
   event.node.res.on('close', () => {
@@ -51,7 +52,7 @@ export default defineEventHandler((event) => {
     doorEventEmitter.off('record-pressed', recordListener)
     clearInterval(keepaliveTimer)
     stream.close()
-  })
+  });
 
   return stream.send()
-})
+});

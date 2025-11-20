@@ -10,7 +10,6 @@ cd DoorPhoneOSS
 2. /publicにpush.mp3[^1]とring.mp3[^2]を配置する。
 3. 
 ```sh
-echo "DISCORD_WEBHOOK_URL=<YOUR_DISCORD_WEBHOOK_URL_HERE>" > .env
 docker compose build --no-cache
 docker compose up
 ```

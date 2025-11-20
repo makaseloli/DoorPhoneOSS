@@ -30,4 +30,4 @@ export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'private, max-age=86400')
 
   return data
-})
+});

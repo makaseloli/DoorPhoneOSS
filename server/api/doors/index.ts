@@ -7,16 +7,16 @@ export default defineEventHandler(async (event) => {
   switch (method) {
     case 'GET':
       return listDoors()
-    case 'POST': {
+  case 'POST': {
       const body = await readBody<{ name?: string }>(event)
-      const name = assertDoorName(body?.name)
-      const door = await createDoor(name)
-      setResponseStatus(event, 201)
-      return door
-    }
+    const name = assertDoorName(body?.name)
+    const door = await createDoor(name)
+    setResponseStatus(event, 201)
+    return door
+  }
     default:
       setResponseHeader(event, 'Allow', 'GET, POST')
-      throw createError({
+    throw createError({
         statusCode: 405,
         statusMessage: 'Method Not Allowed'
       })

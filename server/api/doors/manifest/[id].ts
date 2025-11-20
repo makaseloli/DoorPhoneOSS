@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
         {
           src: '/512x512.png',
           sizes: '512x512',
-          type: 'image/png',
+          type: 'image/png'
         },
         {
           src: '/512x512.png',
@@ -59,7 +59,7 @@ export default defineEventHandler(async (event) => {
       {
         src: '/512x512.png',
         sizes: '512x512',
-        type: 'image/png',
+        type: 'image/png'
       },
       {
         src: '/512x512.png',
@@ -77,4 +77,4 @@ export default defineEventHandler(async (event) => {
   return new Response(JSON.stringify(manifest), {
     headers: { 'Content-Type': 'application/manifest+json; charset=utf-8' }
   })
-})
+});

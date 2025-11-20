@@ -35,8 +35,7 @@ ENV NODE_ENV=production \
     PORT=34567 \
     NITRO_PORT=34567 \
     NITRO_HOST=0.0.0.0 \
-    DATABASE_URL="file:/app/data/dev.db" \
-    DISCORD_WEBHOOK_URL=""
+    DATABASE_URL="file:/app/data/dev.db"
 
 WORKDIR /app
 

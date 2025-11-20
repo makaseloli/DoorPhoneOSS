@@ -3,6 +3,8 @@ export default defineNuxtConfig({
   modules: ['@nuxt/eslint', // "@prisma/nuxt"
     '@nuxt/ui', '@vite-pwa/nuxt'],
 
+  plugins: ['~/plugins/wakeLock.client.ts'],
+
   devtools: {
     enabled: true
   },
@@ -15,6 +17,15 @@ export default defineNuxtConfig({
 
   compatibilityDate: '2025-01-15',
 
+  nitro: {
+    storage: {
+      temp: {
+        driver: 'fs',
+        base: 'data/temp'
+      }
+    }
+  },
+
   eslint: {
     config: {
       stylistic: {
@@ -24,10 +35,6 @@ export default defineNuxtConfig({
     }
   },
 
-  runtimeConfig: {
-    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL || ''
-  },
-
   fonts: {
     families: [
       {
@@ -35,10 +42,8 @@ export default defineNuxtConfig({
         weights: [100, 200, 300, 400, 500, 600, 700],
         styles: ['normal']
       }
-    ],
+    ]
   },
-
-  plugins: ['~/plugins/wakeLock.client.ts'],
 
   pwa: {
     registerType: 'autoUpdate',
@@ -49,16 +54,7 @@ export default defineNuxtConfig({
     },
     devOptions: {
       enabled: true,
-      type: "module"
-    },
-  },
-
-  nitro: {
-    storage: {
-      temp: {
-        driver: 'fs',
-        base: 'data/temp'
-      }
+      type: 'module'
     }
   }
 })

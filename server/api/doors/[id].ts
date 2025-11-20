@@ -12,13 +12,13 @@ export default defineEventHandler(async (event) => {
   switch (method) {
     case 'GET':
       return getDoorOrThrow(id)
-    case 'DELETE':
+  case 'DELETE':
       await deleteDoorById(id)
-      setResponseStatus(event, 204)
-      return null
-    default:
+    setResponseStatus(event, 204)
+    return null
+  default:
       setResponseHeader(event, 'Allow', 'GET, DELETE')
-      throw createError({
+    throw createError({
         statusCode: 405,
         statusMessage: 'Method Not Allowed'
       })

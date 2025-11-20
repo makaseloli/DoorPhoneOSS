@@ -14,11 +14,11 @@ const parseDoorId = (rawId: string | undefined) => {
   }
 
   return id
-}
+};
 
 export const getDoorIdParam = (event: H3Event, paramKey = 'id') => {
   return parseDoorId(event.context.params?.[paramKey])
-}
+};
 
 export const assertDoorName = (input: string | null | undefined) => {
   const value = (input ?? '').trim()
@@ -31,15 +31,15 @@ export const assertDoorName = (input: string | null | undefined) => {
   }
 
   return value
-}
+};
 
 export const listDoors = () => {
   return prisma.door.findMany({ orderBy: { id: 'asc' } })
-}
+};
 
 export const createDoor = (name: string) => {
   return prisma.door.create({ data: { name } })
-}
+};
 
 export const getDoorOrThrow = async (id: number) => {
   if (id == 0) {
@@ -56,7 +56,7 @@ export const getDoorOrThrow = async (id: number) => {
   }
 
   return door
-}
+};
 
 export const deleteDoorById = async (id: number) => {
   try {
