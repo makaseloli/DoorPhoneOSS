@@ -1,6 +1,8 @@
-import { createError, setResponseHeader } from 'h3';
+import { createError, readBody, setResponseHeader } from 'h3';
 import { getDoorIdParam, getDoorOrThrow } from '../../../utils/doors';
 import { doorEventEmitter } from '../../../utils/doorEvents';
+import { notifyDoorDiscordWebhook } from '../../../utils/webhooks';
+import type { DoorEventPayload } from './events';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method?.toUpperCase();
@@ -15,20 +17,26 @@ export default defineEventHandler(async (event) => {
 
   const id = getDoorIdParam(event);
   const door = await getDoorOrThrow(id);
+  const doorName = door.name;
   const triggeredAt = new Date().toISOString();
   const body = await readBody<{ source?: 'door' | 'dash' | 'record', customName?: string, idFrom?: number }>(event);
   const source = body?.source ?? 'door';
 
-  const payload = {
+  const payload: DoorEventPayload = {
     id,
-    idFrom: body.idFrom,
+    idFrom: body.idFrom ?? null,
     triggeredAt,
-    name: door.name,
-    nameFrom: body.customName,
+    name: doorName,
+    nameFrom: body.customName ?? null,
     type: source
   };
 
   doorEventEmitter.emit(`${source}-pressed`, payload);
+
+  const notificationTarget = source === 'door' ? await getDoorOrThrow(0) : door;
+  if (notificationTarget?.webhookUrl) {
+    void notifyDoorDiscordWebhook(notificationTarget, payload);
+  }
 
   return { ok: true };
 });

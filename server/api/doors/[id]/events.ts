@@ -4,11 +4,11 @@ import { doorEventEmitter } from '../../../utils/doorEvents';
 
 export interface DoorEventPayload {
   id: number
-  idFrom: number
+  idFrom?: number | null
   triggeredAt: string
   name: string
-  nameFrom: string
-  type: 'door' | 'dash' | 'record' | 'ping'
+  nameFrom?: string | null
+  type: 'door' | 'dash' | 'record'
 }
 
 export default defineEventHandler((event) => {

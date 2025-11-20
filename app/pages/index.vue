@@ -18,6 +18,9 @@ const AreYouDelete = ref<DoorActionState>({ id: 0, state: false });
 const openCallModal = ref<DoorActionState>({ id: 0, state: false });
 const openRecordModal = ref<DoorActionState>({ id: 0, state: false });
 const openAddModal = ref<boolean>(false);
+const openWebhookModal = ref<DoorActionState>({ id: 0, state: false });
+const webhookUrlInput = ref<string>('');
+const isSavingWebhook = ref(false);
 
 const { data: doors, refresh: refreshDoors } = useFetch<Door[]>('/api/doors', {
   server: false,
@@ -278,6 +281,44 @@ const openDeleteModal = (id: number) => {
   AreYouDelete.value = { id, state: true };
 };
 
+const openWebhookEditor = (door: Door) => {
+  openWebhookModal.value = { id: door.id, state: true, name: door.name };
+  webhookUrlInput.value = door.webhookUrl ?? '';
+};
+
+const closeWebhookEditor = () => {
+  openWebhookModal.value = { id: 0, state: false, name: undefined };
+  webhookUrlInput.value = '';
+};
+
+const saveWebhookUrl = async () => {
+  if (!openWebhookModal.value.state) return;
+  try {
+    isSavingWebhook.value = true;
+    const trimmedValue = webhookUrlInput.value.trim();
+    await $fetch(`/api/doors/${openWebhookModal.value.id}`, {
+      method: 'PATCH',
+      body: { webhookUrl: trimmedValue || null }
+    });
+    toast.add({
+      title: 'Webhookを更新しました',
+      icon: 'ic:outline-check'
+    });
+    closeWebhookEditor();
+    await refreshDoors();
+  } catch (error) {
+    console.error('Failed to update webhook URL', error);
+    toast.add({
+      title: 'Webhook更新失敗',
+      description: 'URLを確認してもう一度お試しください。',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    });
+  } finally {
+    isSavingWebhook.value = false;
+  }
+};
+
 onMounted(async () => {
   try {
     await refreshDoors();
@@ -322,91 +363,42 @@ useHead({
   <div class="space-y-8">
     <UDashboardGroup>
       <UDashboardPanel>
-        <UDashboardNavbar
-          title="ドアホン"
-          icon="ic:outline-door-front"
-        >
+        <UDashboardNavbar title="ドアホン" icon="ic:outline-door-front">
           <template #right>
-            <UButton
-              icon="ic:outline-add"
-              color="neutral"
-              variant="ghost"
-              @click="openAddModal = true"
-            />
+            <UButton icon="ic:outline-add" color="neutral" variant="ghost" @click="openAddModal = true" />
             <div v-if="isAnySseConnected">
-              <UButton
-                icon="ic:outline-wifi-tethering"
-                color="success"
-                variant="ghost"
-              />
+              <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
             </div>
             <div v-else-if="hasLongDisconnected">
-              <UButton
-                icon="ic:outline-wifi-tethering-error"
-                color="error"
-                variant="ghost"
-              />
+              <UButton icon="ic:outline-wifi-tethering-error" color="error" variant="ghost" />
             </div>
             <div v-else>
-              <UButton
-                icon="ic:outline-wifi-tethering"
-                color="neutral"
-                variant="ghost"
-                :loading="true"
-              />
+              <UButton icon="ic:outline-wifi-tethering" color="neutral" variant="ghost" :loading="true" />
             </div>
             <UColorModeButton />
           </template>
         </UDashboardNavbar>
         <UContainer class="mt-8 mx-auto max-w-[800px]">
           <UPageList v-if="hasDoors">
-            <UPageHeader
-              v-for="door in doorItems"
-              :key="door.id"
-              :title="door.name"
-              :description="`ID: ${door.id}`"
-            >
+            <UPageHeader v-for="door in doorItems" :key="door.id" :title="door.name" :description="`ID: ${door.id}`">
               <template #links>
-                <UButton
-                  label="UIへ移動"
-                  target="_blank"
-                  variant="outline"
-                  icon="ic:outline-open-in-new"
-                  :to="`/doorphone/${door.id}`"
-                />
-                <UButton
-                  label="呼ぶ"
-                  color="primary"
-                  icon="ic:outline-call-made"
-                  @click="openCallModal = { id: door.id, state: true }"
-                />
-                <UButton
-                  label="削除"
-                  color="error"
-                  icon="ic:outline-delete"
-                  @click="openDeleteModal(door.id)"
-                />
+                <UButton label="UIへ移動" target="_blank" variant="outline" icon="ic:outline-open-in-new"
+                  :to="`/doorphone/${door.id}`" />
+                <UButton label="呼ぶ" color="primary" icon="ic:outline-call-made"
+                  @click="openCallModal = { id: door.id, state: true }" />
+                <UButton label="Webhook" color="neutral" icon="ic:outline-notifications"
+                  @click="openWebhookEditor(door)" />
+                <UButton label="削除" color="error" icon="ic:outline-delete" @click="openDeleteModal(door.id)" />
               </template>
               <template #description>
-                <UBadge
-                  class="mr-2"
-                  color="neutral"
-                >
+                <UBadge class="mr-2" color="neutral">
                   ID: {{ door.id }}
                 </UBadge>
-                <UBadge
-                  v-if="lastTriggers[door.id]"
-                  class="mr-2"
-                >
+                <UBadge v-if="lastTriggers[door.id]" class="mr-2">
                   最終呼び出し: {{ lastTriggers[door.id] ?? '--:--:--' }}
                 </UBadge>
-                <UBadge
-                  v-if="recordingLookup[door.id]?.time"
-                  variant="outline"
-                  color="primary"
-                  class="cursor-pointer"
-                  @click="handleRecordsBadgeClick(door.id)"
-                >
+                <UBadge v-if="recordingLookup[door.id]?.time" variant="outline" color="primary" class="cursor-pointer"
+                  @click="handleRecordsBadgeClick(door.id)">
                   録音受信: {{ recordingLookup[door.id]?.time }}
                 </UBadge>
               </template>
@@ -421,145 +413,97 @@ useHead({
       </UDashboardPanel>
     </UDashboardGroup>
 
-    <UModal
-      v-model:open="AreYouDelete.state"
-      title="確認"
-    >
+    <UModal v-model:open="AreYouDelete.state" title="確認">
       <template #body>
         <p>本当に削除しますか？</p>
       </template>
       <template #footer>
-        <UButton
-          color="primary"
-          icon="ic:outline-clear"
-          @click="AreYouDelete.state = false; AreYouDelete.id = 0"
-        >
+        <UButton color="primary" icon="ic:outline-clear" @click="AreYouDelete.state = false; AreYouDelete.id = 0">
           キャンセル
         </UButton>
-        <UButton
-          color="error"
-          icon="ic:outline-check"
-          @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false"
-        >
+        <UButton color="error" icon="ic:outline-check" @click="deleteDoor(AreYouDelete.id); AreYouDelete.state = false">
           削除
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="openCallModal.state"
-      title="呼ぶ"
-    >
+    <UModal v-model:open="openCallModal.state" title="呼ぶ">
       <template #body>
-        <UButton
-          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-          size="xl"
-          @click="triggerDoor(openCallModal.id); openCallModal.state = false; openCallModal.id = 0"
-        >
+        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+          size="xl" @click="triggerDoor(openCallModal.id); openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             普通に呼ぶ
           </p>
         </UButton>
-        <USeparator
-          class="my-4"
-          label="or"
-        />
-        <UButton
-          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        <USeparator class="my-4" label="or" />
+        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
           size="xl"
-          @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0"
-        >
+          @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             録音を送信
           </p>
         </UButton>
       </template>
       <template #footer>
-        <UButton
-          color="primary"
-          icon="ic:outline-clear"
-          @click="openCallModal.state = false; openCallModal.id = 0"
-        >
+        <UButton color="primary" icon="ic:outline-clear" @click="openCallModal.state = false; openCallModal.id = 0">
           キャンセル
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="openRecordModal.state"
-      title="録音"
-    >
+    <UModal v-model:open="openRecordModal.state" title="録音">
       <template #body>
-        <Recorder
-          :from="0"
-          :to="openRecordModal.id"
-          name-from="ダッシュボード"
-          @sent="openRecordModal.state = false; openRecordModal.id = 0"
-        />
+        <Recorder :from="0" :to="openRecordModal.id" name-from="ダッシュボード"
+          @sent="openRecordModal.state = false; openRecordModal.id = 0" />
       </template>
       <template #footer>
-        <UButton
-          color="error"
-          icon="ic:outline-clear"
-          @click="openRecordModal.state = false; openRecordModal.id = 0"
-        >
+        <UButton color="error" icon="ic:outline-clear" @click="openRecordModal.state = false; openRecordModal.id = 0">
           キャンセル
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="openAddModal"
-      title="ドアホンを追加"
-    >
+    <UModal v-model:open="openAddModal" title="ドアホンを追加">
       <template #body>
         <UPageList>
-          <UInput
-            v-model="door_name"
-            placeholder="ドアホン名"
-          />
+          <UInput v-model="door_name" placeholder="ドアホン名" />
         </UPageList>
       </template>
 
       <template #footer>
-        <UButton
-          color="primary"
-          :disabled="!isDoorFormValid"
-          :loading="isSubmitting"
-          icon="ic:outline-check"
-          @click="addDoor(); openAddModal = false"
-        >
+        <UButton color="primary" :disabled="!isDoorFormValid" :loading="isSubmitting" icon="ic:outline-check"
+          @click="addDoor(); openAddModal = false">
           追加
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="receivedRecordingsState"
-      :title="modalTitle"
-    >
+    <UModal v-model:open="openWebhookModal.state" :title="`${openWebhookModal.name ?? 'ドア'}のWebhook設定`">
       <template #body>
-        <div
-          v-if="modalRecordings.length === 0"
-          class="py-4 text-center text-neutral-500"
-        >
+        <UPageList>
+          <UInput v-model="webhookUrlInput" placeholder="https://discord.com/api/webhooks/..." />
+        </UPageList>
+      </template>
+      <template #footer>
+        <UButton color="error" icon="ic:outline-close" @click="closeWebhookEditor()">
+          キャンセル
+        </UButton>
+        <UButton color="primary" icon="ic:outline-check" :loading="isSavingWebhook" @click="saveWebhookUrl()">
+          保存
+        </UButton>
+      </template>
+    </UModal>
+
+    <UModal v-model:open="receivedRecordingsState" :title="modalTitle">
+      <template #body>
+        <div v-if="modalRecordings.length === 0" class="py-4 text-center text-neutral-500">
           録音はありません。
         </div>
-        <div
-          v-else
-          class="space-y-4"
-        >
-          <div
-            v-for="record in modalRecordings"
-            :key="`record-${record.from}-${record.cacheKey}`"
-            class="p-4 border border-neutral-200 rounded-lg"
-          >
-            <Player
-              :from="record.from"
-              :to="record.at"
-              :name-from="record.fromName || '不明な送信元'"
-              :version="record.cacheKey"
-            />
+        <div v-else class="space-y-4">
+          <div v-for="record in modalRecordings" :key="`record-${record.from}-${record.cacheKey}`"
+            class="p-4 border border-neutral-200 rounded-lg">
+            <Player :from="record.from" :to="record.at" :name-from="record.fromName || '不明な送信元'"
+              :version="record.cacheKey" />
             <p class="mt-2 text-sm text-neutral-500">
               受信時間: {{ record.time }}
             </p>
@@ -567,11 +511,7 @@ useHead({
         </div>
       </template>
       <template #footer>
-        <UButton
-          color="primary"
-          icon="ic:outline-close"
-          @click="receivedRecordingsState = false"
-        >
+        <UButton color="primary" icon="ic:outline-close" @click="receivedRecordingsState = false">
           閉じる
         </UButton>
       </template>

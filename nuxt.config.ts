@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/eslint', // "@prisma/nuxt"
+  modules: ['@nuxt/eslint', // "@prisma/nuxt",
     '@nuxt/ui', '@vite-pwa/nuxt'],
 
   plugins: ['~/plugins/wakeLock.client.ts'],

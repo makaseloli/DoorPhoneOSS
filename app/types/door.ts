@@ -1,6 +1,7 @@
 export interface Door {
   id: number
   name: string
+  webhookUrl: string | null
 }
 
 export interface DoorActionState {

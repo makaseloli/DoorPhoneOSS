@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const door = await getDoorOrThrow(doorId);
-  const doorName = typeof door === 'string' ? door : door.name;
+  const doorName = door.name;
   const startPath = `/doorphone/${doorId}`;
 
   const manifest = {

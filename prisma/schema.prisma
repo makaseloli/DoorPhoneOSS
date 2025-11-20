@@ -8,6 +8,7 @@ datasource db {
 }
 
 model Door {
-  id   Int    @id @default(autoincrement())
-  name String
+  id         Int     @id @default(autoincrement())
+  name       String
+  webhookUrl String?
 }

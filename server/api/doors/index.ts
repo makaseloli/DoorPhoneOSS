@@ -1,5 +1,5 @@
 import { createError, readBody, setResponseHeader, setResponseStatus } from 'h3';
-import { assertDoorName, createDoor, listDoors } from '../../utils/doors';
+import { assertDoorName, assertDoorWebhookUrl, createDoor, listDoors } from '../../utils/doors';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method?.toUpperCase();
@@ -8,9 +8,10 @@ export default defineEventHandler(async (event) => {
     case 'GET':
       return listDoors();
     case 'POST': {
-      const body = await readBody<{ name?: string }>(event);
+      const body = await readBody<{ name?: string, webhookUrl?: string | null }>(event);
       const name = assertDoorName(body?.name);
-      const door = await createDoor(name);
+      const webhookUrl = assertDoorWebhookUrl(body?.webhookUrl);
+      const door = await createDoor(name, webhookUrl);
       setResponseStatus(event, 201);
       return door;
     }
