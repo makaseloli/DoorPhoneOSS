@@ -2,23 +2,9 @@
 import { createError } from '#app';
 import { onBeforeUnmount, onMounted } from 'vue';
 import { parseDoorEventMessage } from '~/utils/doorEvents';
-
-interface Door {
-  id: number
-  name: string
-}
-interface idAndState {
-  id: number
-  state: boolean
-  name?: string
-}
-interface ReceivedRecording {
-  from: Door['id']
-  at: Door['id']
-  fromName: string
-  time: string
-  cacheKey: string
-}
+import { upsertReceivedRecording } from '~/utils/recordings';
+import { formatDoorEventTime } from '~/utils/time';
+import type { Door, DoorActionState, ReceivedRecording } from '~/types/door';
 
 const toast = useToast();
 const route = useRoute();
@@ -28,8 +14,8 @@ const triggeringDoorId = ref<number | null>(null);
 
 const lastnameFrom = ref<[string, string] | null>(null);
 
-const openCallModal = ref<idAndState>({ id: 0, state: false });
-const openRecordModal = ref<idAndState>({ id: 0, state: false });
+const openCallModal = ref<DoorActionState>({ id: 0, state: false });
+const openRecordModal = ref<DoorActionState>({ id: 0, state: false });
 
 const receivedRecordings = ref<ReceivedRecording[]>([]);
 const receivedRecordingsState = ref<boolean>(false);
@@ -72,13 +58,6 @@ const otherDoors = computed(() => (doors.value ?? []).filter(door => door.id !==
 
 const currentTime = ref<string>('--:--:--');
 const lastRingAt = ref<string | null>(null);
-
-const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false
-});
 
 const triggerDoor = async () => {
   try {
@@ -148,7 +127,7 @@ const PING_TIMEOUT_MS = 45000;
 let pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const updateTime = () => {
-  currentTime.value = formatTime(new Date().toISOString());
+  currentTime.value = formatDoorEventTime(new Date().toISOString());
 };
 
 const clearPingTimeout = () => {
@@ -215,7 +194,7 @@ const attachSource = () => {
       return;
     }
     const payload = parsed.payload;
-    const timeLabel = formatTime(payload.triggeredAt);
+    const timeLabel = formatDoorEventTime(payload.triggeredAt);
     lastRingAt.value = timeLabel;
     console.log('Received door event', payload);
     markSseConnected();
@@ -251,19 +230,12 @@ const attachSource = () => {
         }
         break;
       case 'record': {
-        const targetDoorId = currentDoorId;
-        const cacheKey = payload.triggeredAt;
-        const idFrom = payload.idFrom ?? null;
-        if (idFrom === null) break;
-        const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId);
-
-        if (existingRecord) {
-          existingRecord.time = timeLabel;
-          existingRecord.cacheKey = cacheKey;
-        } else {
-          receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey });
-        }
-
+        upsertReceivedRecording({
+          records: receivedRecordings,
+          payload,
+          targetDoorId: currentDoorId,
+          timeLabel
+        });
         toast.add({
           title: '録音呼び出し',
           description: `${payload.nameFrom}から録音が届きました。`,

@@ -1,21 +1,8 @@
 <script setup lang="ts">
 import { parseDoorEventMessage } from '~/utils/doorEvents';
-
-interface Door {
-  id: number
-  name: string
-}
-interface idAndState {
-  id: number
-  state: boolean
-}
-interface ReceivedRecording {
-  from: Door['id']
-  at: Door['id']
-  fromName: string
-  time: string
-  cacheKey: string
-}
+import { upsertReceivedRecording } from '~/utils/recordings';
+import { formatDoorEventTime } from '~/utils/time';
+import type { Door, DoorActionState, ReceivedRecording } from '~/types/door';
 
 const toast = useToast();
 
@@ -27,9 +14,9 @@ const receivedRecordingsState = ref<boolean>(false);
 const DASHBOARD_DOOR_ID = 0;
 const selectedRecordingDoorId = ref<number | null>(null);
 
-const AreYouDelete = ref<idAndState>({ id: 0, state: false });
-const openCallModal = ref<idAndState>({ id: 0, state: false });
-const openRecordModal = ref<idAndState>({ id: 0, state: false });
+const AreYouDelete = ref<DoorActionState>({ id: 0, state: false });
+const openCallModal = ref<DoorActionState>({ id: 0, state: false });
+const openRecordModal = ref<DoorActionState>({ id: 0, state: false });
 const openAddModal = ref<boolean>(false);
 
 const { data: doors, refresh: refreshDoors } = useFetch<Door[]>('/api/doors', {
@@ -51,13 +38,6 @@ let chime: HTMLAudioElement | null = null;
 let ring: HTMLAudioElement | null = null;
 let voice: HTMLAudioElement | null = null;
 let stopDoorsWatch: (() => void) | null = null;
-
-const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-  hour12: false
-});
 
 const triggerDoor = async (doorId: number) => {
   try {
@@ -181,7 +161,7 @@ const attachSource = (doorId: number) => {
       return;
     }
     const payload = parsed.payload;
-    const timeLabel = formatTime(payload.triggeredAt);
+    const timeLabel = formatDoorEventTime(payload.triggeredAt);
     markDoorConnected(doorId);
     switch (payload.type) {
       case 'door': {
@@ -220,25 +200,12 @@ const attachSource = (doorId: number) => {
       }
       case 'record': {
         if (doorId !== DASHBOARD_DOOR_ID) break;
-        const targetDoorId = doorId;
-        const cacheKey = payload.triggeredAt;
-        const idFrom = payload.idFrom ?? null;
-        if (idFrom === null) break;
-        const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId);
-
-        if (existingRecord) {
-          existingRecord.time = timeLabel;
-          existingRecord.cacheKey = cacheKey;
-          existingRecord.fromName = payload.nameFrom ?? '';
-        } else {
-          receivedRecordings.value.push({
-            from: idFrom,
-            at: targetDoorId,
-            fromName: payload.nameFrom ?? '',
-            time: timeLabel,
-            cacheKey
-          });
-        }
+        upsertReceivedRecording({
+          records: receivedRecordings,
+          payload,
+          targetDoorId: doorId,
+          timeLabel
+        });
 
         if (voice) {
           try {
