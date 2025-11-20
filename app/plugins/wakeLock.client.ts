@@ -1,23 +1,23 @@
-let wakeLock: WakeLockSentinel | null = null
+let wakeLock: WakeLockSentinel | null = null;
 
 async function requestWakeLock() {
   try {
-    wakeLock = await navigator.wakeLock.request('screen')
-    console.log('WakeLock有効')
+    wakeLock = await navigator.wakeLock.request('screen');
+    console.log('WakeLock有効');
     wakeLock.addEventListener('release', () => {
-      console.log('WakeLock解除')
+      console.log('WakeLock解除');
     });
   } catch (err) {
-    console.error('WakeLock取得失敗:', err)
+    console.error('WakeLock取得失敗:', err);
   }
 }
 
 document.addEventListener('visibilitychange', () => {
   if (wakeLock !== null && document.visibilityState === 'visible') {
-    requestWakeLock()
+    requestWakeLock();
   }
-})
+});
 
 if ('wakeLock' in navigator) {
-  requestWakeLock()
+  requestWakeLock();
 }

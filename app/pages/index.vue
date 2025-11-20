@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { parseDoorEventMessage } from '~/utils/doorEvents'
+import { parseDoorEventMessage } from '~/utils/doorEvents';
 
 interface Door {
   id: number
@@ -17,188 +17,188 @@ interface ReceivedRecording {
   cacheKey: string
 }
 
-const toast = useToast()
+const toast = useToast();
 
-const door_name = ref<string>('')
-const isSubmitting = ref<boolean>(false)
+const door_name = ref<string>('');
+const isSubmitting = ref<boolean>(false);
 
-const receivedRecordings = ref<ReceivedRecording[]>([])
-const receivedRecordingsState = ref<boolean>(false)
-const DASHBOARD_DOOR_ID = 0
-const selectedRecordingDoorId = ref<number | null>(null)
+const receivedRecordings = ref<ReceivedRecording[]>([]);
+const receivedRecordingsState = ref<boolean>(false);
+const DASHBOARD_DOOR_ID = 0;
+const selectedRecordingDoorId = ref<number | null>(null);
 
-const AreYouDelete = ref<idAndState>({ id: 0, state: false })
-const openCallModal = ref<idAndState>({ id: 0, state: false })
-const openRecordModal = ref<idAndState>({ id: 0, state: false })
-const openAddModal = ref<boolean>(false)
+const AreYouDelete = ref<idAndState>({ id: 0, state: false });
+const openCallModal = ref<idAndState>({ id: 0, state: false });
+const openRecordModal = ref<idAndState>({ id: 0, state: false });
+const openAddModal = ref<boolean>(false);
 
 const { data: doors, refresh: refreshDoors } = useFetch<Door[]>('/api/doors', {
   server: false,
   lazy: true,
   default: () => []
-})
+});
 
-const lastTriggers = reactive<Record<number, string>>({})
-const sources = new Map<number, EventSource>()
-const reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>()
-const reconnectAttempts = new Map<number, number>()
+const lastTriggers = reactive<Record<number, string>>({});
+const sources = new Map<number, EventSource>();
+const reconnectTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const reconnectAttempts = new Map<number, number>();
 
-const sseConnected = reactive<Record<number, boolean>>({})
-const sseLongDisconnected = reactive<Record<number, boolean>>({})
-const pingTimeouts = new Map<number, ReturnType<typeof setTimeout>>()
-const PING_TIMEOUT_MS = 45000
-let chime: HTMLAudioElement | null = null
-let ring: HTMLAudioElement | null = null
-let voice: HTMLAudioElement | null = null
-let stopDoorsWatch: (() => void) | null = null
+const sseConnected = reactive<Record<number, boolean>>({});
+const sseLongDisconnected = reactive<Record<number, boolean>>({});
+const pingTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+const PING_TIMEOUT_MS = 45000;
+let chime: HTMLAudioElement | null = null;
+let ring: HTMLAudioElement | null = null;
+let voice: HTMLAudioElement | null = null;
+let stopDoorsWatch: (() => void) | null = null;
 
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
   hour12: false
-})
+});
 
 const triggerDoor = async (doorId: number) => {
   try {
     await $fetch(`/api/doors/${doorId}/press`, {
       method: 'POST',
       body: { source: 'dash', customName: 'ダッシュボード' }
-    })
+    });
   } catch (error) {
-    console.error('Failed to trigger door', error)
+    console.error('Failed to trigger door', error);
   }
-}
+};
 
 const isDoorFormValid = computed(() => {
-  const name = door_name.value.trim()
+  const name = door_name.value.trim();
 
-  return name.length > 0
+  return name.length > 0;
 });
 
-const doorItems = computed(() => doors.value ?? [])
-const hasDoors = computed(() => doorItems.value.length > 0)
+const doorItems = computed(() => doors.value ?? []);
+const hasDoors = computed(() => doorItems.value.length > 0);
 
 const recordingLookup = computed(() => {
   return receivedRecordings.value.reduce<Record<number, ReceivedRecording>>((acc, record) => {
-    acc[record.from] = record
-    return acc
-  }, {})
+    acc[record.from] = record;
+    return acc;
+  }, {});
 });
 
 const modalRecordings = computed(() => {
-  if (selectedRecordingDoorId.value === null) return []
-  return receivedRecordings.value.filter(record => record.from === selectedRecordingDoorId.value)
+  if (selectedRecordingDoorId.value === null) return [];
+  return receivedRecordings.value.filter(record => record.from === selectedRecordingDoorId.value);
 });
 
 const selectedDoorName = computed(() => {
-  if (selectedRecordingDoorId.value === null) return ''
-  return doorItems.value.find(door => door.id === selectedRecordingDoorId.value)?.name ?? `ID ${selectedRecordingDoorId.value}`
+  if (selectedRecordingDoorId.value === null) return '';
+  return doorItems.value.find(door => door.id === selectedRecordingDoorId.value)?.name ?? `ID ${selectedRecordingDoorId.value}`;
 });
 
 const modalTitle = computed(() => {
-  if (!selectedDoorName.value) return '受け取った録音'
-  return `${selectedDoorName.value}からの録音`
+  if (!selectedDoorName.value) return '受け取った録音';
+  return `${selectedDoorName.value}からの録音`;
 });
 
 const handleRecordsBadgeClick = (doorId: number) => {
-  selectedRecordingDoorId.value = doorId
-  receivedRecordingsState.value = true
+  selectedRecordingDoorId.value = doorId;
+  receivedRecordingsState.value = true;
 };
 
-const isAnySseConnected = computed(() => Object.values(sseConnected).some(Boolean))
-const hasLongDisconnected = computed(() => Object.values(sseLongDisconnected).some(Boolean))
+const isAnySseConnected = computed(() => Object.values(sseConnected).some(Boolean));
+const hasLongDisconnected = computed(() => Object.values(sseLongDisconnected).some(Boolean));
 
 const clearDoorPingTimeout = (doorId: number) => {
-  const timeout = pingTimeouts.get(doorId)
+  const timeout = pingTimeouts.get(doorId);
   if (timeout) {
-    clearTimeout(timeout)
-    pingTimeouts.delete(doorId)
+    clearTimeout(timeout);
+    pingTimeouts.delete(doorId);
   }
-}
+};
 
 const detachSource = (doorId: number, options?: { preserveState?: boolean }) => {
-  sources.get(doorId)?.close()
-  sources.delete(doorId)
+  sources.get(doorId)?.close();
+  sources.delete(doorId);
   if (!options?.preserveState) {
-    Reflect.deleteProperty(lastTriggers, doorId)
+    Reflect.deleteProperty(lastTriggers, doorId);
   }
-  reconnectAttempts.delete(doorId)
-  const timer = reconnectTimers.get(doorId)
+  reconnectAttempts.delete(doorId);
+  const timer = reconnectTimers.get(doorId);
   if (timer) {
-    clearTimeout(timer)
-    reconnectTimers.delete(doorId)
+    clearTimeout(timer);
+    reconnectTimers.delete(doorId);
   }
 
-  clearDoorPingTimeout(doorId)
+  clearDoorPingTimeout(doorId);
   if (!options?.preserveState) {
-    sseConnected[doorId] = false
-    sseLongDisconnected[doorId] = false
+    sseConnected[doorId] = false;
+    sseLongDisconnected[doorId] = false;
   }
-}
+};
 
 const detachAllSources = () => {
-  for (const id of Array.from(sources.keys())) detachSource(id)
+  for (const id of Array.from(sources.keys())) detachSource(id);
 };
 
 const scheduleReconnect = (doorId: number) => {
-  const nextAttempt = (reconnectAttempts.get(doorId) ?? 0) + 1
-  reconnectAttempts.set(doorId, nextAttempt)
-  const delay = Math.min(30000, 1000 * 2 ** (nextAttempt - 1))
+  const nextAttempt = (reconnectAttempts.get(doorId) ?? 0) + 1;
+  reconnectAttempts.set(doorId, nextAttempt);
+  const delay = Math.min(30000, 1000 * 2 ** (nextAttempt - 1));
   const timer = setTimeout(() => {
-    reconnectTimers.delete(doorId)
-    attachSource(doorId)
-  }, delay)
-  reconnectTimers.set(doorId, timer)
+    reconnectTimers.delete(doorId);
+    attachSource(doorId);
+  }, delay);
+  reconnectTimers.set(doorId, timer);
 };
 
 const markDoorConnected = (doorId: number) => {
-  sseConnected[doorId] = true
-  sseLongDisconnected[doorId] = false
-  clearDoorPingTimeout(doorId)
+  sseConnected[doorId] = true;
+  sseLongDisconnected[doorId] = false;
+  clearDoorPingTimeout(doorId);
   const timeout = setTimeout(() => {
-    sseConnected[doorId] = false
-    sseLongDisconnected[doorId] = true
-    pingTimeouts.delete(doorId)
-  }, PING_TIMEOUT_MS)
-  pingTimeouts.set(doorId, timeout)
+    sseConnected[doorId] = false;
+    sseLongDisconnected[doorId] = true;
+    pingTimeouts.delete(doorId);
+  }, PING_TIMEOUT_MS);
+  pingTimeouts.set(doorId, timeout);
 };
 
 const attachSource = (doorId: number) => {
-  if (sources.has(doorId)) return
-  const source = new EventSource(`/api/doors/${doorId}/events`)
-  reconnectAttempts.set(doorId, 0)
+  if (sources.has(doorId)) return;
+  const source = new EventSource(`/api/doors/${doorId}/events`);
+  reconnectAttempts.set(doorId, 0);
 
-  sseConnected[doorId] = false
+  sseConnected[doorId] = false;
   source.onmessage = (evt) => {
-    const parsed = parseDoorEventMessage(evt.data)
+    const parsed = parseDoorEventMessage(evt.data);
     if (parsed.kind === 'ping') {
-      markDoorConnected(doorId)
+      markDoorConnected(doorId);
       return;
     }
     if (parsed.kind === 'invalid') {
-      console.warn('Invalid event payload', evt.data, parsed.error)
+      console.warn('Invalid event payload', evt.data, parsed.error);
       return;
     }
-    const payload = parsed.payload
-    const timeLabel = formatTime(payload.triggeredAt)
-    markDoorConnected(doorId)
+    const payload = parsed.payload;
+    const timeLabel = formatTime(payload.triggeredAt);
+    markDoorConnected(doorId);
     switch (payload.type) {
       case 'door': {
-        lastTriggers[doorId] = timeLabel
-      const doorName = payload.name ?? doorItems.value.find(door => door.id === doorId)?.name ?? `ID ${doorId}`
-      toast.add({
+        lastTriggers[doorId] = timeLabel;
+        const doorName = payload.name ?? doorItems.value.find(door => door.id === doorId)?.name ?? `ID ${doorId}`;
+        toast.add({
           title: '呼び出し',
           description: `${doorName}が${timeLabel}に押されました。`,
           icon: 'ic:outline-call-received'
-        })
-      if (chime) {
+        });
+        if (chime) {
           try {
-            const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
-          void chimeInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const chimeInstance = chime.cloneNode(true) as HTMLAudioElement;
+            void chimeInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
         break;
       }
@@ -207,148 +207,148 @@ const attachSource = (doorId: number) => {
           title: '呼び出し完了!',
           description: `${payload.name}を呼び出しました。`,
           icon: 'ic:outline-check'
-        })
-      if (ring) {
+        });
+        if (ring) {
           try {
-            const ringInstance = ring.cloneNode(true) as HTMLAudioElement
-          void ringInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const ringInstance = ring.cloneNode(true) as HTMLAudioElement;
+            void ringInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
         break;
       }
       case 'record': {
-        if (doorId !== DASHBOARD_DOOR_ID) break
-      const targetDoorId = doorId
-      const cacheKey = payload.triggeredAt
-      const idFrom = payload.idFrom ?? null
-      if (idFrom === null) break
-      const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId)
+        if (doorId !== DASHBOARD_DOOR_ID) break;
+        const targetDoorId = doorId;
+        const cacheKey = payload.triggeredAt;
+        const idFrom = payload.idFrom ?? null;
+        if (idFrom === null) break;
+        const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId);
 
-      if (existingRecord) {
-          existingRecord.time = timeLabel
-        existingRecord.cacheKey = cacheKey
-        existingRecord.fromName = payload.nameFrom ?? ''
-      } else {
+        if (existingRecord) {
+          existingRecord.time = timeLabel;
+          existingRecord.cacheKey = cacheKey;
+          existingRecord.fromName = payload.nameFrom ?? '';
+        } else {
           receivedRecordings.value.push({
             from: idFrom,
             at: targetDoorId,
             fromName: payload.nameFrom ?? '',
             time: timeLabel,
             cacheKey
-          })
-      }
+          });
+        }
 
         if (voice) {
           try {
-            const voiceInstance = voice.cloneNode(true) as HTMLAudioElement
-          void voiceInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const voiceInstance = voice.cloneNode(true) as HTMLAudioElement;
+            void voiceInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
 
         toast.add({
           title: '録音呼び出し',
           description: `${payload.nameFrom ?? '不明'}から録音が届きました。`,
           icon: 'ic:outline-mic-none'
-        })
-      break;
+        });
+        break;
       }
       default:
         break;
     }
-  }
+  };
   source.onopen = () => {
-    reconnectAttempts.set(doorId, 0)
+    reconnectAttempts.set(doorId, 0);
 
-    markDoorConnected(doorId)
+    markDoorConnected(doorId);
   };
   source.onerror = (error) => {
-    console.error('Door events stream error', doorId, error)
+    console.error('Door events stream error', doorId, error);
 
-    sseConnected[doorId] = false
-    sseLongDisconnected[doorId] = true
-    clearDoorPingTimeout(doorId)
-    detachSource(doorId, { preserveState: true })
-    scheduleReconnect(doorId)
+    sseConnected[doorId] = false;
+    sseLongDisconnected[doorId] = true;
+    clearDoorPingTimeout(doorId);
+    detachSource(doorId, { preserveState: true });
+    scheduleReconnect(doorId);
   };
-  sources.set(doorId, source)
+  sources.set(doorId, source);
 };
 
 const addDoor = async () => {
-  console.log('Adding door...')
-  if (!isDoorFormValid.value || isSubmitting.value) return
+  console.log('Adding door...');
+  if (!isDoorFormValid.value || isSubmitting.value) return;
 
-  const name = door_name.value.trim()
+  const name = door_name.value.trim();
 
   try {
-    isSubmitting.value = true
+    isSubmitting.value = true;
     await $fetch('/api/doors', {
       method: 'POST',
       body: { name }
-    })
-    door_name.value = ''
-    await refreshDoors()
+    });
+    door_name.value = '';
+    await refreshDoors();
   } catch (error) {
-    console.error('Failed to add door', error)
+    console.error('Failed to add door', error);
   } finally {
-    isSubmitting.value = false
+    isSubmitting.value = false;
   }
-}
+};
 
 const deleteDoor = async (id: number) => {
   try {
-    await $fetch(`/api/doors/${id}`, { method: 'DELETE' })
-    await refreshDoors()
+    await $fetch(`/api/doors/${id}`, { method: 'DELETE' });
+    await refreshDoors();
   } catch (error) {
-    console.error(error)
+    console.error(error);
   }
-}
+};
 
 const openDeleteModal = (id: number) => {
-  AreYouDelete.value = { id, state: true }
+  AreYouDelete.value = { id, state: true };
 };
 
 onMounted(async () => {
   try {
-    await refreshDoors()
+    await refreshDoors();
   } catch (error) {
-    console.error('Failed to load doors', error)
+    console.error('Failed to load doors', error);
   }
 
-  chime = new Audio('/ring.mp3')
-  ring = new Audio('/push.mp3')
-  voice = new Audio('/voice.mp3')
-  chime.preload = 'auto'
-  ring.preload = 'auto'
-  voice.preload = 'auto'
+  chime = new Audio('/ring.mp3');
+  ring = new Audio('/push.mp3');
+  voice = new Audio('/voice.mp3');
+  chime.preload = 'auto';
+  ring.preload = 'auto';
+  voice.preload = 'auto';
 
   stopDoorsWatch = watch(doorItems, (doors) => {
-    const activeIds = new Set<number>([DASHBOARD_DOOR_ID])
-    doors.forEach(door => activeIds.add(door.id))
-    activeIds.forEach(id => attachSource(id))
+    const activeIds = new Set<number>([DASHBOARD_DOOR_ID]);
+    doors.forEach(door => activeIds.add(door.id));
+    activeIds.forEach(id => attachSource(id));
     for (const id of Array.from(sources.keys())) {
-      if (!activeIds.has(id)) detachSource(id)
+      if (!activeIds.has(id)) detachSource(id);
     }
-  }, { immediate: true })
+  }, { immediate: true });
 });
 
 watch(receivedRecordingsState, (open) => {
-  if (!open) selectedRecordingDoorId.value = null
+  if (!open) selectedRecordingDoorId.value = null;
 });
 
 onBeforeUnmount(() => {
-  stopDoorsWatch?.()
-  detachAllSources()
+  stopDoorsWatch?.();
+  detachAllSources();
 });
 
 useHead({
   link: [
     { rel: 'manifest', href: '/api/doors/manifest/0' }
   ]
-})
+});
 </script>
 
 <template>

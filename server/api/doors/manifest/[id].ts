@@ -1,12 +1,12 @@
-import { getRequestURL, setResponseHeader } from 'h3'
-import { getDoorIdParam, getDoorOrThrow } from '../../../utils/doors'
+import { getRequestURL, setResponseHeader } from 'h3';
+import { getDoorIdParam, getDoorOrThrow } from '../../../utils/doors';
 
 export default defineEventHandler(async (event) => {
-  const doorId = getDoorIdParam(event)
-  const { origin } = getRequestURL(event)
+  const doorId = getDoorIdParam(event);
+  const { origin } = getRequestURL(event);
 
-  setResponseHeader(event, 'Content-Type', 'application/manifest+json; charset=utf-8')
-  setResponseHeader(event, 'Cache-Control', 'no-cache, no-store, must-revalidate')
+  setResponseHeader(event, 'Content-Type', 'application/manifest+json; charset=utf-8');
+  setResponseHeader(event, 'Cache-Control', 'no-cache, no-store, must-revalidate');
 
   if (doorId === 0) {
     const manifest = {
@@ -36,14 +36,14 @@ export default defineEventHandler(async (event) => {
       prefer_related_applications: false,
       categories: ['productivity'],
       start_url_full: origin
-    }
+    };
 
-    return manifest
+    return manifest;
   }
 
-  const door = await getDoorOrThrow(doorId)
-  const doorName = typeof door === 'string' ? door : door.name
-  const startPath = `/doorphone/${doorId}`
+  const door = await getDoorOrThrow(doorId);
+  const doorName = typeof door === 'string' ? door : door.name;
+  const startPath = `/doorphone/${doorId}`;
 
   const manifest = {
     id: startPath,
@@ -72,9 +72,9 @@ export default defineEventHandler(async (event) => {
     prefer_related_applications: false,
     categories: ['productivity'],
     start_url_full: `${origin}${startPath}`
-  }
+  };
 
   return new Response(JSON.stringify(manifest), {
     headers: { 'Content-Type': 'application/manifest+json; charset=utf-8' }
-  })
+  });
 });

@@ -1,5 +1,5 @@
-import { EventEmitter } from 'node:events'
+import { EventEmitter } from 'node:events';
 
-export const doorEventEmitter = new EventEmitter()
+export const doorEventEmitter = new EventEmitter();
 
-doorEventEmitter.setMaxListeners(0)
+doorEventEmitter.setMaxListeners(0);

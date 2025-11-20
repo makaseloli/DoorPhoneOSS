@@ -1,130 +1,130 @@
 <script setup lang="ts">
-import type { DoorEventPayload } from '~~/server/api/doors/[id]/events'
+import type { DoorEventPayload } from '~~/server/api/doors/[id]/events';
 
 defineOptions({
   name: 'DoorAudioRecorder'
-})
+});
 
 const props = defineProps<{
   from: DoorEventPayload['id']
   to: DoorEventPayload['id']
   nameFrom: string
-}>()
+}>();
 
 const emit = defineEmits<{
   (event: 'start' | 'stop' | 'sent'): void
   (event: 'error', error: unknown): void
-}>()
+}>();
 
-const toast = useToast()
+const toast = useToast();
 
-const isRecording = ref(false)
-const isSending = ref(false)
-const recordedBlob = ref<Blob | null>(null)
-const recorder = ref<MediaRecorder | null>(null)
-const chunks: BlobPart[] = []
-let chime: HTMLAudioElement | null = null
+const isRecording = ref(false);
+const isSending = ref(false);
+const recordedBlob = ref<Blob | null>(null);
+const recorder = ref<MediaRecorder | null>(null);
+const chunks: BlobPart[] = [];
+let chime: HTMLAudioElement | null = null;
 
 const audioUrl = computed(() => {
-  if (!recordedBlob.value) return null
-  return URL.createObjectURL(recordedBlob.value)
+  if (!recordedBlob.value) return null;
+  return URL.createObjectURL(recordedBlob.value);
 });
 
 const resetRecording = () => {
-  if (isRecording.value) recorder.value?.stop()
-  recorder.value = null
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  recordedBlob.value = null
-  isRecording.value = false
+  if (isRecording.value) recorder.value?.stop();
+  recorder.value = null;
+  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value);
+  recordedBlob.value = null;
+  isRecording.value = false;
 };
 
 const startRecording = async () => {
-  if (isRecording.value || typeof window === 'undefined') return
+  if (isRecording.value || typeof window === 'undefined') return;
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    recorder.value = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
-    chunks.length = 0
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recorder.value = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+    chunks.length = 0;
 
     recorder.value.ondataavailable = (evt) => {
-      if (evt.data.size > 0) chunks.push(evt.data)
+      if (evt.data.size > 0) chunks.push(evt.data);
     };
     recorder.value.onstop = () => {
-      recordedBlob.value = new Blob(chunks, { type: 'audio/webm;codecs=opus' })
-      stream.getTracks().forEach(track => track.stop())
-      emit('stop')
+      recordedBlob.value = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+      stream.getTracks().forEach(track => track.stop());
+      emit('stop');
     };
 
-    recorder.value.start()
-    isRecording.value = true
-    recordedBlob.value = null
-    emit('start')
+    recorder.value.start();
+    isRecording.value = true;
+    recordedBlob.value = null;
+    emit('start');
   } catch (error) {
     toast.add({
       title: '録音失敗',
       description: 'マイクへのアクセスが拒否されました。ブラウザの設定を確認してください。',
       icon: 'ic:outline-error-outline',
       color: 'error'
-    })
-    emit('error', error)
+    });
+    emit('error', error);
   }
-}
+};
 
 const stopRecording = () => {
-  if (!recorder.value || recorder.value.state !== 'recording') return
-  recorder.value.stop()
-  isRecording.value = false
+  if (!recorder.value || recorder.value.state !== 'recording') return;
+  recorder.value.stop();
+  isRecording.value = false;
 };
 
 const sendRecording = async () => {
-  if (!recordedBlob.value || isSending.value) return
-  isSending.value = true
+  if (!recordedBlob.value || isSending.value) return;
+  isSending.value = true;
   try {
-    const formData = new FormData()
-    formData.append('audio', recordedBlob.value, `door-${props.from}-to-${props.to}.webm`)
+    const formData = new FormData();
+    formData.append('audio', recordedBlob.value, `door-${props.from}-to-${props.to}.webm`);
     await $fetch(`/api/doors/audio`, {
       method: 'POST',
       body: formData
-    })
+    });
     await $fetch(`/api/doors/${props.to}/press`, {
       method: 'POST',
       body: { source: 'record', idFrom: props.from, customName: props.nameFrom }
-    })
+    });
     if (chime) {
       try {
-        const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
-        void chimeInstance.play()
+        const chimeInstance = chime.cloneNode(true) as HTMLAudioElement;
+        void chimeInstance.play();
       } catch (playError) {
-        console.warn('Audio playback blocked', playError)
+        console.warn('Audio playback blocked', playError);
       }
     }
-    emit('sent')
+    emit('sent');
     toast.add({
       title: '音声送信完了!',
       description: '録音した音声を送信しました。',
       icon: 'ic:outline-check'
-    })
-    resetRecording()
+    });
+    resetRecording();
   } catch (error) {
-    emit('error', error)
+    emit('error', error);
     toast.add({
       title: '音声送信失敗',
       description: `録音した音声の送信に失敗しました。${(error as Error).message}`,
       icon: 'ic:outline-error-outline',
       color: 'error'
-    })
+    });
   } finally {
-    isSending.value = false
+    isSending.value = false;
   }
-}
+};
 
 onBeforeUnmount(() => {
-  resetRecording()
+  resetRecording();
 });
 
 onMounted(() => {
-  chime = new Audio('/push.mp3')
-  chime.preload = 'auto'
+  chime = new Audio('/push.mp3');
+  chime.preload = 'auto';
 });
 </script>
 

@@ -6,7 +6,7 @@ useHead({
   htmlAttrs: {
     lang: 'ja'
   }
-})
+});
 </script>
 
 <template>

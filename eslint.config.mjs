@@ -3,7 +3,8 @@ import withNuxt from './.nuxt/eslint.config.mjs';
 
 export default withNuxt({
   rules: {
-    '@/semi': ['error', 'always'],
-    '@/indent': ['error', 2]
+    '@stylistic/semi': ['error', 'always'],
+    '@stylistic/indent': ['error', 2],
+    'eol-last': ['error', 'always']
   }
 });

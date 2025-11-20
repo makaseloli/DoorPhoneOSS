@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { createError } from '#app'
-import { onBeforeUnmount, onMounted } from 'vue'
-import { parseDoorEventMessage } from '~/utils/doorEvents'
+import { createError } from '#app';
+import { onBeforeUnmount, onMounted } from 'vue';
+import { parseDoorEventMessage } from '~/utils/doorEvents';
 
 interface Door {
   id: number
@@ -20,33 +20,33 @@ interface ReceivedRecording {
   cacheKey: string
 }
 
-const toast = useToast()
-const route = useRoute()
+const toast = useToast();
+const route = useRoute();
 
-const triggerModalState = ref<boolean>(false)
-const triggeringDoorId = ref<number | null>(null)
+const triggerModalState = ref<boolean>(false);
+const triggeringDoorId = ref<number | null>(null);
 
-const lastnameFrom = ref<[string, string] | null>(null)
+const lastnameFrom = ref<[string, string] | null>(null);
 
-const openCallModal = ref<idAndState>({ id: 0, state: false })
-const openRecordModal = ref<idAndState>({ id: 0, state: false })
+const openCallModal = ref<idAndState>({ id: 0, state: false });
+const openRecordModal = ref<idAndState>({ id: 0, state: false });
 
-const receivedRecordings = ref<ReceivedRecording[]>([])
-const receivedRecordingsState = ref<boolean>(false)
+const receivedRecordings = ref<ReceivedRecording[]>([]);
+const receivedRecordingsState = ref<boolean>(false);
 
-const rawId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id
-const sanitizedId = rawId?.toString().trim() ?? ''
+const rawId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id;
+const sanitizedId = rawId?.toString().trim() ?? '';
 
 if (!/^\d+$/.test(sanitizedId)) {
   throw createError({
     statusCode: 400,
     statusMessage: 'Invalid door id'
-  })
+  });
 }
 
 const { data: device, error } = await useFetch<Door>(`/api/doors/${sanitizedId}`, {
   key: `door-${sanitizedId}`
-})
+});
 
 const {
   data: doors,
@@ -56,182 +56,182 @@ const {
   server: false,
   lazy: true,
   default: () => []
-})
+});
 
 if (error.value) {
   throw createError({
     statusCode: error.value.statusCode ?? 500,
     statusMessage: error.value.statusMessage ?? 'Failed to load door data'
-  })
+  });
 }
 
-const currentDoorId = Number.parseInt(sanitizedId, 10)
+const currentDoorId = Number.parseInt(sanitizedId, 10);
 
-const deviceName = computed(() => device.value?.name ?? 'ドアホン')
-const otherDoors = computed(() => (doors.value ?? []).filter(door => door.id !== currentDoorId))
+const deviceName = computed(() => device.value?.name ?? 'ドアホン');
+const otherDoors = computed(() => (doors.value ?? []).filter(door => door.id !== currentDoorId));
 
-const currentTime = ref<string>('--:--:--')
-const lastRingAt = ref<string | null>(null)
+const currentTime = ref<string>('--:--:--');
+const lastRingAt = ref<string | null>(null);
 
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString('ja-JP', {
   hour: '2-digit',
   minute: '2-digit',
   second: '2-digit',
   hour12: false
-})
+});
 
 const triggerDoor = async () => {
   try {
     await $fetch(`/api/doors/${sanitizedId}/press`, {
       method: 'POST',
       body: { source: 'door' }
-    })
+    });
   } catch (error) {
-    console.error('Failed to trigger door', error)
+    console.error('Failed to trigger door', error);
   }
-}
+};
 
 const triggerOtherDoor = async (doorId: number, doorName: string) => {
-  if (triggeringDoorId.value) return
+  if (triggeringDoorId.value) return;
   try {
-    triggeringDoorId.value = doorId
+    triggeringDoorId.value = doorId;
     await $fetch(`/api/doors/${doorId}/press`, {
       method: 'POST',
       body: { source: 'dash', customName: deviceName.value }
-    })
+    });
     toast.add({
       title: '呼び出し完了!',
       description: `${doorName}を呼び出しました。`,
       icon: 'ic:outline-check'
-    })
+    });
     if (chime) {
       try {
-        const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
-        void chimeInstance.play()
+        const chimeInstance = chime.cloneNode(true) as HTMLAudioElement;
+        void chimeInstance.play();
       } catch (playError) {
-        console.warn('Audio playback blocked', playError)
+        console.warn('Audio playback blocked', playError);
       }
     }
-    triggerModalState.value = false
+    triggerModalState.value = false;
   } catch (error) {
-    console.error('Failed to trigger door', error)
+    console.error('Failed to trigger door', error);
     toast.add({
       title: '呼び出し失敗',
       icon: 'ic:outline-error-outline',
       color: 'error'
-    })
+    });
   } finally {
-    triggeringDoorId.value = null
+    triggeringDoorId.value = null;
   }
-}
+};
 
 const openTriggerModal = async () => {
   try {
-    await refreshDoors()
+    await refreshDoors();
   } catch (error) {
-    console.error('Failed to load doors', error)
+    console.error('Failed to load doors', error);
   }
-  triggerModalState.value = true
+  triggerModalState.value = true;
 };
 
-let intervalId: ReturnType<typeof setInterval> | null = null
-let chime: HTMLAudioElement | null = null
-let ring: HTMLAudioElement | null = null
-let voice: HTMLAudioElement | null = null
-let eventSource: EventSource | null = null
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-let reconnectAttempt = 0
+let intervalId: ReturnType<typeof setInterval> | null = null;
+let chime: HTMLAudioElement | null = null;
+let ring: HTMLAudioElement | null = null;
+let voice: HTMLAudioElement | null = null;
+let eventSource: EventSource | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempt = 0;
 
-const sseConnected = ref(false)
-const sseLongDisconnected = ref(false)
-const PING_TIMEOUT_MS = 45000
-let pingTimeout: ReturnType<typeof setTimeout> | null = null
+const sseConnected = ref(false);
+const sseLongDisconnected = ref(false);
+const PING_TIMEOUT_MS = 45000;
+let pingTimeout: ReturnType<typeof setTimeout> | null = null;
 
 const updateTime = () => {
-  currentTime.value = formatTime(new Date().toISOString())
+  currentTime.value = formatTime(new Date().toISOString());
 };
 
 const clearPingTimeout = () => {
   if (pingTimeout) {
-    clearTimeout(pingTimeout)
-    pingTimeout = null
+    clearTimeout(pingTimeout);
+    pingTimeout = null;
   }
-}
+};
 
 const markSseConnected = () => {
-  sseConnected.value = true
-  sseLongDisconnected.value = false
-  clearPingTimeout()
+  sseConnected.value = true;
+  sseLongDisconnected.value = false;
+  clearPingTimeout();
   pingTimeout = setTimeout(() => {
-    sseConnected.value = false
-    sseLongDisconnected.value = true
-  }, PING_TIMEOUT_MS)
+    sseConnected.value = false;
+    sseLongDisconnected.value = true;
+  }, PING_TIMEOUT_MS);
 };
 
 const detachSource = (resetState = true) => {
   if (eventSource) {
-    eventSource.close()
-    eventSource = null
+    eventSource.close();
+    eventSource = null;
   }
   if (reconnectTimer) {
-    clearTimeout(reconnectTimer)
-    reconnectTimer = null
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
-  clearPingTimeout()
+  clearPingTimeout();
   if (resetState) {
-    sseConnected.value = false
-    sseLongDisconnected.value = false
+    sseConnected.value = false;
+    sseLongDisconnected.value = false;
   }
-}
+};
 
 const scheduleReconnect = () => {
-  if (reconnectTimer) return
-  reconnectAttempt += 1
-  const delay = Math.min(30000, 1000 * 2 ** (reconnectAttempt - 1))
+  if (reconnectTimer) return;
+  reconnectAttempt += 1;
+  const delay = Math.min(30000, 1000 * 2 ** (reconnectAttempt - 1));
   reconnectTimer = setTimeout(() => {
-    reconnectTimer = null
-    attachSource()
-  }, delay)
+    reconnectTimer = null;
+    attachSource();
+  }, delay);
 };
 
 const attachSource = () => {
-  if (eventSource) return
-  const source = new EventSource(`/api/doors/${sanitizedId}/events`)
-  reconnectAttempt = 0
-  sseConnected.value = false
+  if (eventSource) return;
+  const source = new EventSource(`/api/doors/${sanitizedId}/events`);
+  reconnectAttempt = 0;
+  sseConnected.value = false;
   source.onmessage = (evt) => {
-    const parsed = parseDoorEventMessage(evt.data)
+    const parsed = parseDoorEventMessage(evt.data);
     if (parsed.kind === 'ping') {
-      markSseConnected()
+      markSseConnected();
       return;
     }
     if (parsed.kind === 'invalid') {
-      console.warn('Received invalid event payload', evt.data, parsed.error)
+      console.warn('Received invalid event payload', evt.data, parsed.error);
       toast.add({
         title: '呼び出し失敗',
         icon: 'ic:outline-error-outline',
         color: 'error'
-      })
+      });
       return;
     }
-    const payload = parsed.payload
-    const timeLabel = formatTime(payload.triggeredAt)
-    lastRingAt.value = timeLabel
-    console.log('Received door event', payload)
-    markSseConnected()
+    const payload = parsed.payload;
+    const timeLabel = formatTime(payload.triggeredAt);
+    lastRingAt.value = timeLabel;
+    console.log('Received door event', payload);
+    markSseConnected();
     switch (payload.type) {
       case 'door':
         toast.add({
           title: '呼び出し完了!',
           icon: 'ic:outline-check'
-        })
-      if (chime) {
+        });
+        if (chime) {
           try {
-            const chimeInstance = chime.cloneNode(true) as HTMLAudioElement
-          void chimeInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const chimeInstance = chime.cloneNode(true) as HTMLAudioElement;
+            void chimeInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
         break;
       case 'dash':
@@ -239,92 +239,92 @@ const attachSource = () => {
           title: `${payload.nameFrom}から呼び出し`,
           description: `${payload.name}が${timeLabel}に押されました。`,
           icon: 'ic:outline-call-received'
-        })
-      lastnameFrom.value = [payload.nameFrom ?? '', timeLabel]
-      if (ring) {
+        });
+        lastnameFrom.value = [payload.nameFrom ?? '', timeLabel];
+        if (ring) {
           try {
-            const ringInstance = ring.cloneNode(true) as HTMLAudioElement
-          void ringInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const ringInstance = ring.cloneNode(true) as HTMLAudioElement;
+            void ringInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
         break;
       case 'record': {
-        const targetDoorId = currentDoorId
-      const cacheKey = payload.triggeredAt
-      const idFrom = payload.idFrom ?? null
-      if (idFrom === null) break
-      const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId)
+        const targetDoorId = currentDoorId;
+        const cacheKey = payload.triggeredAt;
+        const idFrom = payload.idFrom ?? null;
+        if (idFrom === null) break;
+        const existingRecord = receivedRecordings.value.find(record => record.from === idFrom && record.at === targetDoorId);
 
-      if (existingRecord) {
-          existingRecord.time = timeLabel
-        existingRecord.cacheKey = cacheKey
-      } else {
-          receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey })
-      }
+        if (existingRecord) {
+          existingRecord.time = timeLabel;
+          existingRecord.cacheKey = cacheKey;
+        } else {
+          receivedRecordings.value.push({ from: idFrom, at: targetDoorId, fromName: payload.nameFrom ?? '', time: timeLabel, cacheKey });
+        }
 
         toast.add({
           title: '録音呼び出し',
           description: `${payload.nameFrom}から録音が届きました。`,
           icon: 'ic:outline-mic-none'
-        })
-      if (voice) {
+        });
+        if (voice) {
           try {
-            const voiceInstance = voice.cloneNode(true) as HTMLAudioElement
-          void voiceInstance.play()
-        } catch (playError) {
-            console.warn('Audio playback blocked', playError)
-        }
+            const voiceInstance = voice.cloneNode(true) as HTMLAudioElement;
+            void voiceInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
         }
         break;
       }
       default:
         break;
     }
-  }
+  };
   source.onopen = () => {
-    reconnectAttempt = 0
-    markSseConnected()
+    reconnectAttempt = 0;
+    markSseConnected();
   };
   source.onerror = (error) => {
-    console.error('Door events stream error', sanitizedId, error)
-    sseConnected.value = false
-    sseLongDisconnected.value = true
-    clearPingTimeout()
-    detachSource(false)
-    scheduleReconnect()
+    console.error('Door events stream error', sanitizedId, error);
+    sseConnected.value = false;
+    sseLongDisconnected.value = true;
+    clearPingTimeout();
+    detachSource(false);
+    scheduleReconnect();
   };
-  eventSource = source
+  eventSource = source;
 };
 
 onMounted(() => {
-  updateTime()
+  updateTime();
   intervalId = setInterval(() => {
-    updateTime()
-  }, 1000)
-  chime = new Audio('/push.mp3')
-  ring = new Audio('/ring.mp3')
-  voice = new Audio('/voice.mp3')
-  chime.preload = 'auto'
-  ring.preload = 'auto'
-  voice.preload = 'auto'
-  attachSource()
+    updateTime();
+  }, 1000);
+  chime = new Audio('/push.mp3');
+  ring = new Audio('/ring.mp3');
+  voice = new Audio('/voice.mp3');
+  chime.preload = 'auto';
+  ring.preload = 'auto';
+  voice.preload = 'auto';
+  attachSource();
 });
 
 onBeforeUnmount(() => {
   if (intervalId) {
-    clearInterval(intervalId)
-    intervalId = null
+    clearInterval(intervalId);
+    intervalId = null;
   }
-  detachSource()
+  detachSource();
 });
 
 useHead(() => ({
   link: [
     { rel: 'manifest', href: `/api/doors/manifest/${sanitizedId}` }
   ]
-}))
+}));
 </script>
 
 <template>
