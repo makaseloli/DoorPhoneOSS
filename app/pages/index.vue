@@ -438,7 +438,6 @@ useHead({
       <UDashboardPanel>
         <UDashboardNavbar title="ドアホン" icon="ic:outline-door-front">
           <template #right>
-            <UButton icon="ic:outline-add" color="neutral" variant="ghost" @click="openAddModal = true" />
             <div v-if="isAnySseConnected">
               <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
             </div>
@@ -448,6 +447,7 @@ useHead({
             <div v-else>
               <UButton icon="ic:outline-wifi-tethering" color="neutral" variant="ghost" :loading="true" />
             </div>
+            <UButton icon="ic:outline-add" color="neutral" variant="ghost" @click="openAddModal = true" />
             <UColorModeButton />
           </template>
         </UDashboardNavbar>
