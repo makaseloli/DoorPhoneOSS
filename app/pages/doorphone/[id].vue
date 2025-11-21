@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { createError } from '#app';
-import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeUnmount, onMounted, watch } from 'vue';
 import { parseDoorEventMessage } from '~/utils/doorEvents';
-import { upsertReceivedRecording } from '~/utils/recordings';
+import { isRecordingRecentlyCreated, upsertReceivedRecording } from '~/utils/recordings';
 import { formatDoorEventTime } from '~/utils/time';
 import type { Door, DoorActionState, ReceivedRecording } from '~/types/door';
+import type { DoorRecordingListItem } from '~~/server/api/doors/[id]/recordings.get';
 
 const toast = useToast();
 const route = useRoute();
@@ -18,6 +19,10 @@ const openCallModal = ref<DoorActionState>({ id: 0, state: false });
 const openRecordModal = ref<DoorActionState>({ id: 0, state: false });
 
 const receivedRecordings = ref<ReceivedRecording[]>([]);
+const receivedRecordingsTemp = ref<ReceivedRecording[]>([]);
+const recordingsLoading = ref(false);
+const recordingsError = ref<string | null>(null);
+const deletingRecordingFilename = ref<string | null>(null);
 const receivedRecordingsState = ref<boolean>(false);
 
 const rawId = Array.isArray(route.params.id) ? route.params.id[0] : route.params.id;
@@ -58,6 +63,70 @@ const otherDoors = computed(() => (doors.value ?? []).filter(door => door.id !==
 
 const currentTime = ref<string>('--:--:--');
 const lastRingAt = ref<string | null>(null);
+
+const formatRecordingListItem = (item: DoorRecordingListItem): ReceivedRecording => {
+  const updatedAt = item.updatedAt ?? item.createdAt ?? null;
+  return {
+    from: item.from,
+    at: item.to,
+    fromName: `ID: ${item.from}`,
+    time: updatedAt ? formatDoorEventTime(updatedAt) : '--:--:--',
+    cacheKey: updatedAt ?? item.filename,
+    filename: item.filename,
+    url: item.url,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+};
+
+const loadReceivedRecordings = async () => {
+  recordingsLoading.value = true;
+  recordingsError.value = null;
+  try {
+    const response = await $fetch<{ recordings: DoorRecordingListItem[] }>(`/api/doors/${sanitizedId}/recordings`);
+    receivedRecordings.value = response.recordings.map(formatRecordingListItem);
+  } catch (error) {
+    console.error('Failed to load recordings', error);
+    recordingsError.value = (error as Error).message ?? '録音の取得に失敗しました。';
+  } finally {
+    recordingsLoading.value = false;
+  }
+};
+
+const deleteRecording = async (record: ReceivedRecording) => {
+  if (!record.filename) {
+    toast.add({
+      title: '録音削除失敗',
+      description: '削除対象の録音を特定できませんでした。',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    });
+    return;
+  }
+
+  const encoded = encodeURIComponent(record.filename);
+  deletingRecordingFilename.value = record.filename;
+  try {
+    await $fetch(`/api/doors/${sanitizedId}/recordings/${encoded}`, { method: 'DELETE' });
+    receivedRecordings.value = receivedRecordings.value.filter(item => item.filename !== record.filename);
+    toast.add({
+      title: '録音を削除しました',
+      icon: 'ic:outline-check'
+    });
+  } catch (error) {
+    console.error('Failed to delete recording', error);
+    toast.add({
+      title: '録音削除失敗',
+      description: (error as Error).message ?? '録音の削除に失敗しました。',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    });
+  } finally {
+    if (deletingRecordingFilename.value === record.filename) {
+      deletingRecordingFilename.value = null;
+    }
+  }
+};
 
 const triggerDoor = async () => {
   try {
@@ -236,6 +305,12 @@ const attachSource = () => {
           targetDoorId: currentDoorId,
           timeLabel
         });
+        upsertReceivedRecording({
+          records: receivedRecordingsTemp,
+          payload,
+          targetDoorId: currentDoorId,
+          timeLabel
+        });
         toast.add({
           title: '録音呼び出し',
           description: `${payload.nameFrom}から録音が届きました。`,
@@ -282,6 +357,7 @@ onMounted(() => {
   ring.preload = 'auto';
   voice.preload = 'auto';
   attachSource();
+  void loadReceivedRecordings();
 });
 
 onBeforeUnmount(() => {
@@ -290,6 +366,12 @@ onBeforeUnmount(() => {
     intervalId = null;
   }
   detachSource();
+});
+
+watch(receivedRecordingsState, (open) => {
+  if (open) {
+    void loadReceivedRecordings();
+  }
 });
 
 useHead(() => ({
@@ -306,10 +388,7 @@ useHead(() => ({
         <h1 class="font-bold">
           {{ deviceName }}
         </h1>
-        <UBadge
-          color="neutral"
-          variant="outline"
-        >
+        <UBadge color="neutral" variant="outline">
           {{ currentTime }}
         </UBadge>
       </template>
@@ -317,245 +396,159 @@ useHead(() => ({
         <UBadge color="neutral">
           ID: {{ rawId }}
         </UBadge>
-        <UBadge
-          v-if="lastRingAt"
-          color="primary"
-        >
+        <UBadge v-if="lastRingAt" color="primary">
           最終呼び出し: {{ lastRingAt }}
         </UBadge>
         <div v-if="sseConnected">
-          <UButton
-            icon="ic:outline-wifi-tethering"
-            color="success"
-            variant="ghost"
-          />
+          <UButton icon="ic:outline-wifi-tethering" color="success" variant="ghost" />
         </div>
         <div v-else-if="sseLongDisconnected">
-          <UButton
-            icon="ic:outline-wifi-tethering-error"
-            color="error"
-            variant="ghost"
-          />
+          <UButton icon="ic:outline-wifi-tethering-error" color="error" variant="ghost" />
         </div>
         <div v-else>
-          <UButton
-            icon="ic:outline-wifi-tethering"
-            color="neutral"
-            variant="ghost"
-            :loading="true"
-          />
+          <UButton icon="ic:outline-wifi-tethering" color="neutral" variant="ghost" :loading="true" />
         </div>
+        <UButton icon="ic:outline-inbox" color="neutral" variant="ghost" @click="receivedRecordingsState = true;" />
         <UColorModeButton />
       </template>
     </UHeader>
     <UContainer class="mt-8 mx-auto max-w-[800px]">
       <div class="flex gap-4">
-        <UAlert
-          v-if="lastnameFrom"
-          title="呼び出しがありました。"
-          :description="lastnameFrom ? `${lastnameFrom[0]}から${lastnameFrom[1]}に呼び出されました。` : ''"
-          close
-          close-icon="ic:outline-close"
-          icon="ic:outline-call-missed"
-          variant="outline"
-          color="neutral"
-          class="cursor-pointer"
-          @click="lastnameFrom = null"
-        />
-        <UAlert
-          v-if="receivedRecordings.length > 0"
-          title="録音が届いています。"
-          :description="`受け取った録音が${receivedRecordings.length}件あります。`"
-          icon="ic:outline-mic-none"
-          variant="outline"
-          class="cursor-pointer"
-          color="neutral"
-          @click="receivedRecordingsState = true"
-        />
+        <UAlert v-if="lastnameFrom" title="呼び出しがありました。"
+          :description="lastnameFrom ? `${lastnameFrom[0]}から${lastnameFrom[1]}に呼び出されました。` : ''" close
+          close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral"
+          class="cursor-pointer" @click="lastnameFrom = null" />
+        <UAlert v-if="receivedRecordingsTemp.length > 0" title="録音が届いています。"
+          :description="`受け取った録音が${receivedRecordingsTemp.length}件あります。`" icon="ic:outline-mic-none" variant="outline"
+          class="cursor-pointer" color="neutral" @click="receivedRecordingsState = true; receivedRecordingsTemp = []" />
       </div>
 
-      <UButton
-        v-if="rawId != '0'"
-        color="primary"
-        class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-        size="xl"
-        @click="triggerDoor()"
-      >
+      <UButton v-if="rawId != '0'" color="primary"
+        class="my-4 w-full h-[50vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
+        @click="triggerDoor()">
         <p class="text-center">
           呼ぶ
         </p>
       </UButton>
-      <UButton
-        color="neutral"
-        class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-        size="xl"
-        @click="openTriggerModal()"
-      >
+      <UButton color="neutral"
+        class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
+        @click="openTriggerModal()">
         <p class="text-center">
           他の部屋を呼ぶ
         </p>
       </UButton>
     </UContainer>
 
-    <UModal
-      v-model:open="triggerModalState"
-      title="どの部屋を呼びますか?"
-    >
+    <UModal v-model:open="triggerModalState" title="どの部屋を呼びますか?">
       <template #body>
-        <div
-          v-if="doorsPending"
-          class="py-4 text-center text-neutral-500"
-        >
-          <UProgress
-            color="neutral"
-            animation="swing"
-          />
+        <div v-if="doorsPending" class="py-4 text-center text-neutral-500">
+          <UProgress color="neutral" animation="swing" />
         </div>
-        <div
-          v-else-if="otherDoors.length === 0"
-          class="text-center text-neutral-500"
-        >
-          <UButton
-            v-if="rawId != '0'"
-            color="primary"
-            variant="solid"
-            icon="ic:outline-call-made"
-            block
-            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0"
-          >
+        <div v-else-if="otherDoors.length === 0" class="text-center text-neutral-500">
+          <UButton v-if="rawId != '0'" color="primary" variant="solid" icon="ic:outline-call-made" block
+            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0">
             ダッシュボード
           </UButton>
         </div>
-        <div
-          v-else
-          class="space-y-3"
-        >
-          <UButton
-            v-for="door in otherDoors"
-            :key="door.id"
-            color="neutral"
-            variant="solid"
-            block
-            :loading="triggeringDoorId === door.id"
-            icon="ic:outline-call-made"
-            @click="openCallModal.id = door.id; openCallModal.name = door.name; openCallModal.state = true; triggerModalState = false"
-          >
+        <div v-else class="space-y-3">
+          <UButton v-for="door in otherDoors" :key="door.id" color="neutral" variant="solid" block
+            :loading="triggeringDoorId === door.id" icon="ic:outline-call-made"
+            @click="openCallModal.id = door.id; openCallModal.name = door.name; openCallModal.state = true; triggerModalState = false">
             {{ door.name }}
           </UButton>
-          <UButton
-            v-if="rawId != '0'"
-            color="primary"
-            variant="solid"
-            icon="ic:outline-call-made"
-            block
-            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0"
-          >
+          <UButton v-if="rawId != '0'" color="primary" variant="solid" icon="ic:outline-call-made" block
+            @click="triggerModalState = false; openRecordModal.state = true; openRecordModal.id = 0">
             ダッシュボード
           </UButton>
         </div>
       </template>
       <template #footer>
-        <UButton
-          color="primary"
-          icon="ic:outline-clear"
-          @click="triggerModalState = false;"
-        >
+        <UButton color="primary" icon="ic:outline-clear" @click="triggerModalState = false;">
           キャンセル
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="receivedRecordingsState"
-      title="受け取った録音"
-    >
+    <UModal v-model:open="receivedRecordingsState" title="受け取った録音">
       <template #body>
-        <div
-          v-if="receivedRecordings.length === 0"
-          class="py-4 text-center text-neutral-500"
-        >
-          受け取った録音はありません。
-        </div>
-        <div
-          v-else
-          class="space-y-4"
-        >
-          <div
-            v-for="record in receivedRecordings"
-            :key="`${record.from}-${record.at}-${record.cacheKey}`"
-            class="p-4 border border-neutral-200 rounded-lg"
-          >
-            <Player
-              :from="record.from"
-              :to="record.at"
-              :name-from="record.fromName"
-              :version="record.cacheKey"
-            />
-            <p class="mt-2 text-sm text-neutral-500">
-              受信時間: {{ record.time }}
+        <div class="space-y-4">
+          <div class="flex justify-end">
+            <UButton icon="ic:outline-refresh" variant="ghost" size="sm" :loading="recordingsLoading"
+              @click="loadReceivedRecordings">
+              更新
+            </UButton>
+          </div>
+          <div v-if="recordingsLoading" class="py-4 text-center text-neutral-500">
+            <UProgress color="neutral" animation="swing" />
+          </div>
+          <div v-else-if="recordingsError" class="py-4 text-center text-error-600 space-y-2">
+            <p>
+              {{ recordingsError }}
             </p>
+            <UButton color="error" variant="soft" size="sm" @click="loadReceivedRecordings">
+              再試行
+            </UButton>
+          </div>
+          <div v-else-if="receivedRecordings.length === 0" class="py-4 text-center text-neutral-500">
+            受け取った録音はありません。
+          </div>
+          <div v-else class="space-y-4">
+            <div v-for="record in receivedRecordings" :key="`${record.from}-${record.at}-${record.cacheKey}`"
+              class="p-4 border border-neutral-200 rounded-lg space-y-2">
+              <Player :from="record.from" :to="record.at" :name-from="record.fromName" :version="record.cacheKey"
+                :src="record.url" />
+              <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-500">
+                <span>
+                  受信時間: {{ record.time }}
+                </span>
+                <UBadge v-if="isRecordingRecentlyCreated(record)" color="primary" variant="solid" size="xs">
+                  NEW
+                </UBadge>
+                <UButton icon="ic:outline-delete" color="error" variant="soft" size="sm"
+                  :disabled="!record.filename || deletingRecordingFilename === record.filename"
+                  :loading="deletingRecordingFilename === record.filename" @click="deleteRecording(record)">
+                  削除
+                </UButton>
+              </div>
+            </div>
           </div>
         </div>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="openCallModal.state"
-      title="呼ぶ"
-    >
+    <UModal v-model:open="openCallModal.state" title="呼ぶ">
       <template #body>
-        <UButton
-          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
           size="xl"
-          @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0"
-        >
+          @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             普通に呼ぶ
           </p>
         </UButton>
-        <USeparator
-          class="my-4"
-          label="or"
-        />
-        <UButton
-          class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        <USeparator class="my-4" label="or" />
+        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
           size="xl"
-          @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0"
-        >
+          @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             録音を送信
           </p>
         </UButton>
       </template>
       <template #footer>
-        <UButton
-          color="primary"
-          icon="ic:outline-clear"
-          @click="openCallModal.state = false; openCallModal.id = 0; openCallModal.name = undefined"
-        >
+        <UButton color="primary" icon="ic:outline-clear"
+          @click="openCallModal.state = false; openCallModal.id = 0; openCallModal.name = undefined">
           キャンセル
         </UButton>
       </template>
     </UModal>
 
-    <UModal
-      v-model:open="openRecordModal.state"
-      title="録音"
-    >
+    <UModal v-model:open="openRecordModal.state" title="録音">
       <template #body>
-        <Recorder
-          :from="currentDoorId"
-          :to="openRecordModal.id"
-          :name-from="deviceName"
-          @sent="openRecordModal.state = false; openRecordModal.id = 0"
-        />
+        <Recorder :from="currentDoorId" :to="openRecordModal.id" :name-from="deviceName"
+          @sent="openRecordModal.state = false; openRecordModal.id = 0" />
       </template>
       <template #footer>
-        <UButton
-          color="error"
-          icon="ic:outline-clear"
-          @click="openRecordModal.state = false; openRecordModal.id = 0"
-        >
+        <UButton color="error" icon="ic:outline-clear" @click="openRecordModal.state = false; openRecordModal.id = 0">
           キャンセル
         </UButton>
       </template>
