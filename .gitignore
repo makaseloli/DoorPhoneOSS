@@ -25,7 +25,7 @@ logs
 dev.db
 migrations
 
-public/temp/
+data/temp/
 public/push.mp3
 public/ring.mp3
 public/voice.mp3

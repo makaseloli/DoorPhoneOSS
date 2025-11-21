@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { parseDoorEventMessage } from '~/utils/doorEvents';
-import { upsertReceivedRecording } from '~/utils/recordings';
+import { isRecordingRecentlyCreated, upsertReceivedRecording } from '~/utils/recordings';
 import { formatDoorEventTime } from '~/utils/time';
 import type { Door, DoorActionState, ReceivedRecording } from '~/types/door';
+import type { DoorRecordingListItem } from '~~/server/api/doors/[id]/recordings.get';
 
 const toast = useToast();
 
@@ -10,6 +11,9 @@ const door_name = ref<string>('');
 const isSubmitting = ref<boolean>(false);
 
 const receivedRecordings = ref<ReceivedRecording[]>([]);
+const recordingsLoading = ref(false);
+const recordingsError = ref<string | null>(null);
+const deletingRecordingFilename = ref<string | null>(null);
 const receivedRecordingsState = ref<boolean>(false);
 const DASHBOARD_DOOR_ID = 0;
 const selectedRecordingDoorId = ref<number | null>(null);
@@ -83,6 +87,69 @@ const modalTitle = computed(() => {
   if (!selectedDoorName.value) return '受け取った録音';
   return `${selectedDoorName.value}からの録音`;
 });
+
+const mapRecordingListItem = (item: DoorRecordingListItem): ReceivedRecording => {
+  const updatedAt = item.updatedAt ?? item.createdAt ?? null;
+  return {
+    from: item.from,
+    at: item.to,
+    fromName: item.fromName ?? `ID: ${item.from}`,
+    time: updatedAt ? formatDoorEventTime(updatedAt) : '--:--:--',
+    cacheKey: updatedAt ?? item.filename,
+    filename: item.filename,
+    url: item.url,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt
+  };
+};
+
+const loadDashboardRecordings = async () => {
+  recordingsLoading.value = true;
+  recordingsError.value = null;
+  try {
+    const response = await $fetch<{ recordings: DoorRecordingListItem[] }>(`/api/doors/${DASHBOARD_DOOR_ID}/recordings`);
+    receivedRecordings.value = response.recordings.map(mapRecordingListItem);
+  } catch (error) {
+    console.error('Failed to load recordings', error);
+    recordingsError.value = (error as Error).message ?? '録音の取得に失敗しました。';
+  } finally {
+    recordingsLoading.value = false;
+  }
+};
+
+const deleteDashboardRecording = async (record: ReceivedRecording) => {
+  if (!record.filename) {
+    toast.add({
+      title: '録音削除失敗',
+      description: '削除対象の録音を特定できませんでした。',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    });
+    return;
+  }
+  const encoded = encodeURIComponent(record.filename);
+  deletingRecordingFilename.value = record.filename;
+  try {
+    await $fetch(`/api/doors/${DASHBOARD_DOOR_ID}/recordings/${encoded}`, { method: 'DELETE' });
+    receivedRecordings.value = receivedRecordings.value.filter(item => item.filename !== record.filename);
+    toast.add({
+      title: '録音を削除しました',
+      icon: 'ic:outline-check'
+    });
+  } catch (error) {
+    console.error('Failed to delete recording', error);
+    toast.add({
+      title: '録音削除失敗',
+      description: (error as Error).message ?? '録音の削除に失敗しました。',
+      icon: 'ic:outline-error-outline',
+      color: 'error'
+    });
+  } finally {
+    if (deletingRecordingFilename.value === record.filename) {
+      deletingRecordingFilename.value = null;
+    }
+  }
+};
 
 const handleRecordsBadgeClick = (doorId: number) => {
   selectedRecordingDoorId.value = doorId;
@@ -341,10 +408,16 @@ onMounted(async () => {
       if (!activeIds.has(id)) detachSource(id);
     }
   }, { immediate: true });
+
+  void loadDashboardRecordings();
 });
 
 watch(receivedRecordingsState, (open) => {
-  if (!open) selectedRecordingDoorId.value = null;
+  if (open) {
+    void loadDashboardRecordings();
+  } else {
+    selectedRecordingDoorId.value = null;
+  }
 });
 
 onBeforeUnmount(() => {
@@ -386,8 +459,7 @@ useHead({
                   :to="`/doorphone/${door.id}`" />
                 <UButton label="呼ぶ" color="primary" icon="ic:outline-call-made"
                   @click="openCallModal = { id: door.id, state: true }" />
-                <UButton label="Webhook" color="neutral" icon="ic:outline-webhook"
-                  @click="openWebhookEditor(door)" />
+                <UButton label="Webhook" color="neutral" icon="ic:outline-webhook" @click="openWebhookEditor(door)" />
                 <UButton label="削除" color="error" icon="ic:outline-delete" @click="openDeleteModal(door.id)" />
               </template>
               <template #description>
@@ -496,23 +568,46 @@ useHead({
 
     <UModal v-model:open="receivedRecordingsState" :title="modalTitle">
       <template #body>
-        <div v-if="modalRecordings.length === 0" class="py-4 text-center text-neutral-500">
-          録音はありません。
-        </div>
-        <div v-else class="space-y-4">
-          <div v-for="record in modalRecordings" :key="`record-${record.from}-${record.cacheKey}`"
-            class="p-4 border border-neutral-200 rounded-lg">
-            <Player :from="record.from" :to="record.at" :name-from="record.fromName || '不明な送信元'"
-              :version="record.cacheKey" />
-            <p class="mt-2 text-sm text-neutral-500">
-              受信時間: {{ record.time }}
-            </p>
+        <UPageList>
+          <div v-if="recordingsLoading" class="text-center">
+            <UProgress color="neutral" animation="swing" />
           </div>
-        </div>
+          <div v-else-if="recordingsError" class="text-center text-error-600">
+            {{ recordingsError }}
+          </div>
+          <div v-else-if="modalRecordings.length === 0" class="text-center text-neutral-500">
+            録音はありません。
+          </div>
+          <div v-else class="space-y-4">
+            <div v-for="record in modalRecordings" :key="`record-${record.from}-${record.cacheKey}`"
+              class="p-4 border border-neutral-200 rounded-lg space-y-2">
+              <UBadge v-if="isRecordingRecentlyCreated(record)" color="primary" variant="solid" size="xs">
+                NEW
+              </UBadge>
+              <Player :from="record.from" :to="record.at" :name-from="record.fromName || '不明な送信元'"
+                :version="record.cacheKey" :src="record.url" />
+              <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-500">
+                <span>
+                  受信時間: {{ record.time }}
+                </span>
+                <UButton icon="ic:outline-delete" color="error" variant="soft" size="sm"
+                  :disabled="!record.filename || deletingRecordingFilename === record.filename"
+                  :loading="deletingRecordingFilename === record.filename" @click="deleteDashboardRecording(record)">
+                  削除
+                </UButton>
+              </div>
+            </div>
+          </div>
+        </UPageList>
       </template>
+
       <template #footer>
-        <UButton color="primary" icon="ic:outline-close" @click="receivedRecordingsState = false">
+        <UButton color="neutral" icon="ic:outline-close" @click="receivedRecordingsState = false">
           閉じる
+        </UButton>
+        <UButton color="primary" icon="ic:outline-refresh" :loading="recordingsLoading"
+          @click="loadDashboardRecordings">
+          更新
         </UButton>
       </template>
     </UModal>

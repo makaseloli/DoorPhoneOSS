@@ -22,12 +22,22 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{ source?: 'door' | 'dash' | 'record', customName?: string, idFrom?: number }>(event);
   const source = body?.source ?? 'door';
 
+  let nameFrom = body.customName ?? null;
+  if (!nameFrom && typeof body.idFrom === 'number') {
+    try {
+      const fromDoor = await getDoorOrThrow(body.idFrom);
+      nameFrom = fromDoor.name;
+    } catch (error) {
+      console.warn('Failed to resolve sender door name', body.idFrom, error);
+    }
+  }
+
   const payload: DoorEventPayload = {
     id,
     idFrom: body.idFrom ?? null,
     triggeredAt,
     name: doorName,
-    nameFrom: body.customName ?? null,
+    nameFrom,
     type: source
   };
 

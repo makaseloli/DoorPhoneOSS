@@ -16,4 +16,8 @@ export interface ReceivedRecording {
   fromName: string
   time: string
   cacheKey: string
+  filename?: string
+  url?: string
+  createdAt?: string | null
+  updatedAt?: string | null
 }

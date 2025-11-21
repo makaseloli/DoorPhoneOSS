@@ -69,7 +69,7 @@ const formatRecordingListItem = (item: DoorRecordingListItem): ReceivedRecording
   return {
     from: item.from,
     at: item.to,
-    fromName: `ID: ${item.from}`,
+    fromName: item.fromName ?? `ID: ${item.from}`,
     time: updatedAt ? formatDoorEventTime(updatedAt) : '--:--:--',
     cacheKey: updatedAt ?? item.filename,
     filename: item.filename,
@@ -408,7 +408,9 @@ useHead(() => ({
         <div v-else>
           <UButton icon="ic:outline-wifi-tethering" color="neutral" variant="ghost" :loading="true" />
         </div>
-        <UButton icon="ic:outline-inbox" color="neutral" variant="ghost" @click="receivedRecordingsState = true;" />
+        <UChip :show="receivedRecordingsTemp.length > 0">
+          <UButton icon="ic:outline-inbox" color="neutral" variant="ghost" @click="receivedRecordingsState = true;" />
+        </UChip>
         <UColorModeButton />
       </template>
     </UHeader>
@@ -441,7 +443,7 @@ useHead(() => ({
 
     <UModal v-model:open="triggerModalState" title="どの部屋を呼びますか?">
       <template #body>
-        <div v-if="doorsPending" class="py-4 text-center text-neutral-500">
+        <div v-if="doorsPending" class="text-center">
           <UProgress color="neutral" animation="swing" />
         </div>
         <div v-else-if="otherDoors.length === 0" class="text-center text-neutral-500">
@@ -471,39 +473,28 @@ useHead(() => ({
 
     <UModal v-model:open="receivedRecordingsState" title="受け取った録音">
       <template #body>
-        <div class="space-y-4">
-          <div class="flex justify-end">
-            <UButton icon="ic:outline-refresh" variant="ghost" size="sm" :loading="recordingsLoading"
-              @click="loadReceivedRecordings">
-              更新
-            </UButton>
-          </div>
-          <div v-if="recordingsLoading" class="py-4 text-center text-neutral-500">
+        <UPageList>
+          <div v-if="recordingsLoading" class="text-center">
             <UProgress color="neutral" animation="swing" />
           </div>
-          <div v-else-if="recordingsError" class="py-4 text-center text-error-600 space-y-2">
-            <p>
-              {{ recordingsError }}
-            </p>
-            <UButton color="error" variant="soft" size="sm" @click="loadReceivedRecordings">
-              再試行
-            </UButton>
+          <div v-else-if="recordingsError" class="text-center text-error-600">
+            {{ recordingsError }}
           </div>
-          <div v-else-if="receivedRecordings.length === 0" class="py-4 text-center text-neutral-500">
+          <div v-else-if="receivedRecordings.length === 0" class="text-center text-neutral-500">
             受け取った録音はありません。
           </div>
           <div v-else class="space-y-4">
             <div v-for="record in receivedRecordings" :key="`${record.from}-${record.at}-${record.cacheKey}`"
               class="p-4 border border-neutral-200 rounded-lg space-y-2">
+              <UBadge v-if="isRecordingRecentlyCreated(record)" color="primary" variant="solid" size="xs">
+                NEW
+              </UBadge>
               <Player :from="record.from" :to="record.at" :name-from="record.fromName" :version="record.cacheKey"
                 :src="record.url" />
               <div class="flex flex-wrap items-center justify-between gap-2 text-sm text-neutral-500">
                 <span>
                   受信時間: {{ record.time }}
                 </span>
-                <UBadge v-if="isRecordingRecentlyCreated(record)" color="primary" variant="solid" size="xs">
-                  NEW
-                </UBadge>
                 <UButton icon="ic:outline-delete" color="error" variant="soft" size="sm"
                   :disabled="!record.filename || deletingRecordingFilename === record.filename"
                   :loading="deletingRecordingFilename === record.filename" @click="deleteRecording(record)">
@@ -512,7 +503,16 @@ useHead(() => ({
               </div>
             </div>
           </div>
-        </div>
+        </UPageList>
+      </template>
+
+      <template #footer>
+        <UButton color="neutral" icon="ic:outline-clear" @click="receivedRecordingsState = false;">
+          閉じる
+        </UButton>
+        <UButton color="primary" icon="ic:outline-refresh" :loading="recordingsLoading" @click="loadReceivedRecordings">
+          更新
+        </UButton>
       </template>
     </UModal>
 

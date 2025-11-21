@@ -11,15 +11,17 @@ const props = defineProps<{
   to: DoorEventPayload['id']
   nameFrom: string
   version?: string
+  src?: string
 }>();
 
 const audioElement = ref<HTMLAudioElement | null>(null);
 const loadFailed = ref(false);
 
 const audioSrc = computed(() => {
-  const base = `/temp/door-${props.from}-to-${props.to}.webm`;
+  const base = props.src ?? `/temp/door-${props.from}-to-${props.to}.webm`;
   if (!props.version) return base;
-  return `${base}?v=${encodeURIComponent(props.version)}`;
+  const separator = base.includes('?') ? '&' : '?';
+  return `${base}${separator}v=${encodeURIComponent(props.version)}`;
 });
 
 const reloadAudio = async () => {
@@ -57,19 +59,9 @@ onBeforeUnmount(() => {
     <p class="font-medium">
       {{ props.nameFrom }}からの録音
     </p>
-    <audio
-      ref="audioElement"
-      :src="audioSrc"
-      controls
-      class="w-full"
-      preload="auto"
-      @error="handleAudioError"
-      @loadeddata="handleLoadedData"
-    />
-    <p
-      v-if="loadFailed"
-      class="text-sm text-error-600"
-    >
+    <audio ref="audioElement" :src="audioSrc" controls class="w-full" preload="auto" @error="handleAudioError"
+      @loadeddata="handleLoadedData" />
+    <p v-if="loadFailed" class="text-sm text-error-600">
       音声を読み込めませんでした。
     </p>
   </div>
