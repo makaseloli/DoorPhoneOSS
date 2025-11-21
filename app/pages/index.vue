@@ -518,7 +518,7 @@ useHead({
       </template>
       <template #footer>
         <UButton color="primary" icon="ic:outline-clear" @click="openCallModal.state = false; openCallModal.id = 0">
-          キャンセル
+          閉じる
         </UButton>
       </template>
     </UModal>
@@ -543,6 +543,9 @@ useHead({
       </template>
 
       <template #footer>
+        <UButton color="error" icon="ic:outline-close" @click="openAddModal = false">
+          キャンセル
+        </UButton>
         <UButton color="primary" :disabled="!isDoorFormValid" :loading="isSubmitting" icon="ic:outline-check"
           @click="addDoor(); openAddModal = false">
           追加

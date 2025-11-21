@@ -408,7 +408,7 @@ useHead(() => ({
         <div v-else>
           <UButton icon="ic:outline-wifi-tethering" color="neutral" variant="ghost" :loading="true" />
         </div>
-        <UChip :show="receivedRecordingsTemp.length > 0">
+        <UChip :show="receivedRecordingsTemp.length > 0" inset>
           <UButton icon="ic:outline-inbox" color="neutral" variant="ghost" @click="receivedRecordingsState = true;" />
         </UChip>
         <UColorModeButton />
@@ -421,7 +421,7 @@ useHead(() => ({
           close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral"
           class="cursor-pointer" @click="lastnameFrom = null" />
         <UAlert v-if="receivedRecordingsTemp.length > 0" title="録音が届いています。"
-          :description="`受け取った録音が${receivedRecordingsTemp.length}件あります。`" icon="ic:outline-mic-none" variant="outline"
+          :description="`受け取った録音が${receivedRecordingsTemp.length}件あります。`" icon="ic:outline-mic-none" variant="outline" close close-icon="ic:outline-close"
           class="cursor-pointer" color="neutral" @click="receivedRecordingsState = true; receivedRecordingsTemp = []" />
       </div>
 
@@ -466,7 +466,7 @@ useHead(() => ({
       </template>
       <template #footer>
         <UButton color="primary" icon="ic:outline-clear" @click="triggerModalState = false;">
-          キャンセル
+          閉じる
         </UButton>
       </template>
     </UModal>
@@ -537,7 +537,7 @@ useHead(() => ({
       <template #footer>
         <UButton color="primary" icon="ic:outline-clear"
           @click="openCallModal.state = false; openCallModal.id = 0; openCallModal.name = undefined">
-          キャンセル
+          閉じる
         </UButton>
       </template>
     </UModal>
