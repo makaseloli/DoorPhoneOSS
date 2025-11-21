@@ -518,7 +518,7 @@ useHead(() => ({
 
     <UModal v-model:open="openCallModal.state" title="呼ぶ">
       <template #body>
-        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
           size="xl"
           @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
@@ -526,7 +526,7 @@ useHead(() => ({
           </p>
         </UButton>
         <USeparator class="my-4" label="or" />
-        <UButton class="my-4 w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
+        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
           size="xl"
           @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
