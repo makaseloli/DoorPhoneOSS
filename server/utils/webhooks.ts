@@ -24,11 +24,13 @@ const formatTimestamp = (iso: string) => {
 
 const EVENT_META = {
   door: { icon: '🔔', color: 0xf97316 },
-  record: { icon: '🎙️', color: 0xa855f7 }
+  record: { icon: '🎙️', color: 0xa855f7 },
+  opened: { icon: '🔓', color: 0x22c55e }
 } as const;
 
 const resolveEventMeta = (type: DoorEventPayload['type']) => {
   if (type === 'record') return EVENT_META.record;
+  if (type === 'opened') return EVENT_META.opened;
   return EVENT_META.door;
 };
 
@@ -56,6 +58,8 @@ const buildDescription = (sourceName: string, targetName: string, payload: DoorE
       return `${sourceName}から${targetName}へ${timeLabel}に呼び出しがありました。`;
     case 'record':
       return `${sourceName}から${targetName}宛てに${timeLabel}に録音が届きました。`;
+    case 'opened':
+      return `${sourceName}が${timeLabel}に解錠されました。`;
     default:
       return `${sourceName}が${timeLabel}にアクションを起こしました。`;
   }
@@ -68,8 +72,12 @@ const buildDoorEventEmbed = (target: DoorNotificationTarget, payload: DoorEventP
   const sourceName = resolveSourceName(payload);
   const targetName = target.name;
 
+  const title = payload.type === 'opened' 
+    ? `${meta.icon} ドアが開かれました。`
+    : `${meta.icon} 呼び出しがありました。`;
+
   return {
-    title: `${meta.icon} 呼び出しがありました。`,
+    title,
     description: buildDescription(sourceName, targetName, payload, timeLabel),
     color: meta.color,
     fields: [

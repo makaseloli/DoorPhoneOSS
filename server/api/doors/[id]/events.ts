@@ -8,7 +8,7 @@ export interface DoorEventPayload {
   triggeredAt: string
   name: string
   nameFrom?: string | null
-  type: 'door' | 'dash' | 'record'
+  type: 'door' | 'dash' | 'record' | 'opened'
 }
 
 export default defineEventHandler((event) => {
@@ -36,6 +36,7 @@ export default defineEventHandler((event) => {
 
   doorEventEmitter.on('door-pressed', pressedListener);
   doorEventEmitter.on('dash-pressed', openedListener);
+  doorEventEmitter.on('door-opened', openedListener);
   doorEventEmitter.on('record-pressed', recordListener);
 
   const KEEPALIVE_MS = Number(process.env.SSE_KEEPALIVE_MS ?? 20000);
@@ -49,6 +50,7 @@ export default defineEventHandler((event) => {
   event.node.res.on('close', () => {
     doorEventEmitter.off('door-pressed', pressedListener);
     doorEventEmitter.off('dash-pressed', openedListener);
+    doorEventEmitter.off('door-opened', openedListener);
     doorEventEmitter.off('record-pressed', recordListener);
     clearInterval(keepaliveTimer);
     stream.close();

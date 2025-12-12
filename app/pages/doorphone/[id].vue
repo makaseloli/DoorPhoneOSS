@@ -186,6 +186,7 @@ let intervalId: ReturnType<typeof setInterval> | null = null;
 let chime: HTMLAudioElement | null = null;
 let ring: HTMLAudioElement | null = null;
 let voice: HTMLAudioElement | null = null;
+let opened: HTMLAudioElement | null = null;
 let eventSource: EventSource | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
@@ -298,6 +299,21 @@ const attachSource = () => {
           }
         }
         break;
+      case 'opened': {
+        toast.add({
+          title: 'ドアが開かれました',
+          icon: 'ic:outline-lock-open'
+        });
+        if (opened) {
+          try {
+            const openedInstance = opened.cloneNode(true) as HTMLAudioElement;
+            void openedInstance.play();
+          } catch (playError) {
+            console.warn('Audio playback blocked', playError);
+          }
+        }
+        break;
+      }
       case 'record': {
         upsertReceivedRecording({
           records: receivedRecordings,
@@ -353,9 +369,11 @@ onMounted(() => {
   chime = new Audio('/push.mp3');
   ring = new Audio('/ring.mp3');
   voice = new Audio('/voice.mp3');
+  opened = new Audio('/opened.mp3');
   chime.preload = 'auto';
   ring.preload = 'auto';
   voice.preload = 'auto';
+  opened.preload = 'auto';
   attachSource();
   void loadReceivedRecordings();
 });
@@ -421,8 +439,9 @@ useHead(() => ({
           close-icon="ic:outline-close" icon="ic:outline-call-missed" variant="outline" color="neutral"
           class="cursor-pointer" @click="lastnameFrom = null" />
         <UAlert v-if="receivedRecordingsTemp.length > 0" title="録音が届いています。"
-          :description="`受け取った録音が${receivedRecordingsTemp.length}件あります。`" icon="ic:outline-mic-none" variant="outline" close close-icon="ic:outline-close"
-          class="cursor-pointer" color="neutral" @click="receivedRecordingsState = true; receivedRecordingsTemp = []" />
+          :description="`受け取った録音が${receivedRecordingsTemp.length}件あります。`" icon="ic:outline-mic-none" variant="outline"
+          close close-icon="ic:outline-close" class="cursor-pointer" color="neutral"
+          @click="receivedRecordingsState = true; receivedRecordingsTemp = []" />
       </div>
 
       <UButton v-if="rawId != '0'" color="primary"
@@ -518,16 +537,14 @@ useHead(() => ({
 
     <UModal v-model:open="openCallModal.state" title="呼ぶ">
       <template #body>
-        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-          size="xl"
+        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
           @click="triggerOtherDoor(openCallModal.id, openCallModal.name || 'Unknown'); openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             普通に呼ぶ
           </p>
         </UButton>
         <USeparator class="my-4" label="or" />
-        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4"
-          size="xl"
+        <UButton class="w-full h-[20vh] py-8 text-4xl font-semibold flex items-center justify-center gap-4" size="xl"
           @click="openRecordModal.state = true; openRecordModal.id = openCallModal.id; openCallModal.state = false; openCallModal.id = 0">
           <p class="text-center">
             録音を送信
