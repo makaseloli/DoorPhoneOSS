@@ -27,6 +27,7 @@ export default defineEventHandler((event) => {
 
   const pushIfMatch = (payload: DoorEventPayload) => {
     if (payload.id !== id) return;
+    console.log(`[SSE] Pushing event to door ${id}:`, JSON.stringify(payload));
     stream.push(JSON.stringify(payload));
   };
 

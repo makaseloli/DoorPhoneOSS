@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
     type: 'opened'
   };
 
+  console.log(`[API] Emitting door-opened event for door ${id}:`, JSON.stringify(payload));
   doorEventEmitter.emit('door-opened', payload);
 
   if (door.webhookUrl) {

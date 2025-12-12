@@ -59,7 +59,7 @@ const buildDescription = (sourceName: string, targetName: string, payload: DoorE
     case 'record':
       return `${sourceName}から${targetName}宛てに${timeLabel}に録音が届きました。`;
     case 'opened':
-      return `${sourceName}が${timeLabel}に解錠されました。`;
+      return `${sourceName}が${timeLabel}を開きました。`;
     default:
       return `${sourceName}が${timeLabel}にアクションを起こしました。`;
   }

@@ -41,6 +41,7 @@ export default defineEventHandler(async (event) => {
     type: source
   };
 
+  console.log(`[API] Emitting ${source}-pressed event for door ${id}:`, JSON.stringify(payload));
   doorEventEmitter.emit(`${source}-pressed`, payload);
 
   const notificationTarget = source === 'door' ? await getDoorOrThrow(0) : door;
